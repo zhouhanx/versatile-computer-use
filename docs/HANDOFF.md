@@ -1,8 +1,61 @@
 # 会话交接
 
-更新：2026-09-26。这是当前 Windows 会话的上下文，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。GitHub 登录名现为 **zhouhanx**（原 zhouhanker，2026-09-28 改名）。仓库地址见 `docs/IDENTITY.md`。没有改写历史。提交邮箱仍是 `zhouhanker@gmail.com`。
+更新：2026-09-28。这是当前 macOS 会话的关闭记录，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。GitHub 登录名是 **zhouhanx**（原 zhouhanker）。仓库地址见 `docs/IDENTITY.md`。没有改写历史。提交邮箱仍是 `zhouhanker@gmail.com`。
 
 ## 这次做了什么
+
+把 Windows 已推送的 `main` 同步到这台 Mac，改仓库身份，并确认用户 Edge 已加载同一份扩展。没有改产品代码，没有改写历史，没有推送。
+
+| 点 | 做法 | 提交 |
+| --- | --- | --- |
+| 检出 | 快进到当时的 `origin/main` `2c0060e` | 已在远端 |
+| 登录名 | GitHub 从 `zhouhanker` 改为 `zhouhanx`。`origin` 是 `https://github.com/zhouhanx/versatile-computer-use.git`，SSH 记在 `docs/IDENTITY.md` | `4498331`，本地，未推送 |
+| 扩展 | `~/.vcu/lens-extension` 与仓库 `extension/` 23 个文件一致，清单 `0.2.8`。用户已在 Edge 重载 | 无产品提交 |
+| Codex 告警 | 从 `~/.codex/config.toml` 删掉三个已被忽略的键 | 不进仓库 |
+
+作者 `zhouhanx <zhouhanker@gmail.com>`。本仓库 `user.name` 是 `zhouhanx`，`user.email` 是 `zhouhanker@gmail.com`。
+
+## 本机复测
+
+关闭前再查：
+
+- `vcu browser ping --json` 返回 `pong=true`，`version=0.2.8`，`os_cursor_used=false`。
+- `vcu browser login-state --json` 返回 `extension_profile=user`，`extension_sw_stale=false`，`allow_dialog_visible=false`，`lens_dir=/Users/zhouhan/.vcu/lens-extension`。用户浏览器是 Microsoft Edge。
+- 扩展目录与仓库 `extension/` 无差异。
+
+同一会话早先的行为检查：后台打开 `https://example.com`，进入折叠的紫色「VCU」组，没有抢走当时的 GitHub 页。测试标签已关，原有三个标签未动。没有点「允许调试」，没有移动系统光标。
+
+已经打开的旧网页仍是旧内容脚本。细操作前要刷新，否则会报 `content lens is stale`。
+
+## Codex 配置
+
+Codex 报的是一条告警，里面有 3 个被忽略的键，不是两个独立故障。已从 `~/.codex/config.toml` 删除：
+
+- `disable_response_storage`
+- `[mcp_servers.computer-use]` 的 `type`
+- `[mcp_servers.node_repl]` 的 `type`
+
+两个服务的 `command` 都还在，传输仍由 `command` 决定。`computer-use` 仍是 `enabled = false`，没有启用。没有改 `~/.codex/computer-use/`。现行配置参考没有这三个键，也没有把 `disable_response_storage` 换成 `history.persistence`；后者只控制本地会话记录。新开一个 Codex 会话后，这条告警才会消失。
+
+## 下一次接着做时
+
+先读 `docs/PLAN.md`，再读 `docs/WINDOWS-DEV.md`，再读本文。不要把下面的 Windows 快照当成当前现场，也不要当成排期。
+
+本机 `main` 比 `origin/main` 超前。身份提交是 `4498331`，这次交接在它之后。没有用户要求不要 `git push`。不要 claim `MAC-NEXT` 或 `FEISHU-001`。Shell 命令前缀用 `rtk`。
+
+Windows 机器下次仍按 `docs/WINDOWS-DEV.md`。那边的 daemon 和扩展目录与这台 Mac 不是同一份。
+
+## 明确没做
+
+- 没有推送 `4498331`，也没有推送这次交接。
+- 没有新的 GitHub Release，没有上架扩展。
+- 没有改产品代码，没有 claim `MAC-NEXT` 或 `FEISHU-001`。
+- 没有点「允许调试」，没有移动系统光标，没有自动化微信。
+- 没有改 `~/.codex/computer-use/`。
+
+## 2026-09-26 Windows 快照
+
+下面是当时 Windows 会话的上下文，不是当前 macOS 现场，也不是排期。
 
 Windows 浏览器相对 macOS 补了两点，都已推到 `origin/main`。
 

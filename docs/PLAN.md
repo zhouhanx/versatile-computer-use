@@ -1,6 +1,6 @@
 # VCU 当前计划（浏览器版）
 
-更新：2026-09-26。Windows 开发与扩展更新见 [WINDOWS-DEV.md](WINDOWS-DEV.md)。扩展继续本地加载，不上商店。本文优先于 HANDOFF 历史快照；作者 zhouhanx（GitHub 登录名，原 zhouhanker）。Windows 产品会话证据到 CU-WIN-SESSION-091。Windows Stage 的直角黑底已从 Acrylic accent 改成圆角区域模糊，淡阴影画在预乘文字层。不要把旧哈希 `e5d47df` 当成当前 HEAD。CU-D-610 本机复测通过：旧截图 stale_viewport，重新 observe 后 dry-run 通过。
+更新：2026-09-28。Windows 开发与扩展更新见 [WINDOWS-DEV.md](WINDOWS-DEV.md)。扩展继续本地加载，不上商店。本文优先于 HANDOFF 历史快照；作者 zhouhanx（GitHub 登录名，原 zhouhanker）。这台 Mac 的身份提交是 `4498331`，交接提交在它之后，都未推送。不要把 `4498331`、`2c0060e` 或旧哈希 `e5d47df` 当成当前 HEAD。Windows 产品会话证据到 CU-WIN-SESSION-091。Windows Stage 的直角黑底已从 Acrylic accent 改成圆角区域模糊，淡阴影画在预乘文字层。CU-D-610 本机复测通过：旧截图 stale_viewport，重新 observe 后 dry-run 通过。
 
 ## 当前节点
 

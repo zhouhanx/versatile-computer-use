@@ -85,4 +85,6 @@ vcu browser install-lens --from ./extension --reload
 vcu browser ping --json
 ```
 
-不要点「允许调试」。
+不要点「允许调试」。已经打开的旧网页要刷新后才换内容脚本。
+
+2026-09-28 这台 Mac 已把检出快进到当时的 `origin/main`（`2c0060e`），再在本地提交身份改动 `4498331`，尚未推送。`~/.vcu/lens-extension` 与仓库 `extension/` 一致，23 个文件，清单 `0.2.8`。用户已在 Edge 重载。关闭前 `vcu browser ping` 返回 pong，`login-state` 的 `extension_profile=user`，`extension_sw_stale=false`。没有点「允许调试」。
