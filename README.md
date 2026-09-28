@@ -2,10 +2,6 @@
 
 厂商与模型无关的本机 Computer Use 运行时。通过 CLI、本地 daemon 与 MCP，把观察与操作接到 Codex、Claude、Cursor 等宿主。宿主已能看图时，不必再配视觉模型。
 
-仓库：[github.com/zhouhanx/versatile-computer-use](https://github.com/zhouhanx/versatile-computer-use)
-
-GitHub 登录名现为 zhouhanx（原 zhouhanker，2026-09-28 改名）。没有改写历史。提交邮箱仍是 zhouhanker@gmail.com。不要用 zhouhan 或 `zhouhan@users.noreply.github.com`。
-
 Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。`vcu --version` 打印的是 crate 版本，不代表浏览器桥没有更新。
 
 已发布的接入是浏览器桥：用户自己的 Chrome / Edge，加上解压缩扩展。桌面会话不是两边的默认接入，也不是完整 Codex CU，更不是完整 Windows 产品 CU。
