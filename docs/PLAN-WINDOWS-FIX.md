@@ -1,5 +1,7 @@
 # Windows 真机修复计划
 
+当前索引（2026-09-28）：WIN-FIX-001…009 为历史记录，本轮未复测。优先 macOS，旧「MAC-NEXT 停放」仅是本 Windows 修复会话的边界，不覆盖新排期。Windows 后续为 QA-001 后的 WIN-101…103 → WIN-NEXT（planned），见 [会话专项后续节](PLAN-EPIC-WIN-SESSION.md)；全主线见 [PLAN-MAINLINES.md](PLAN-MAINLINES.md)。
+
 更新：2026-09-26。作者：本机真机测试记录。状态：WIN-FIX-001 至 008 已提交并复测通过。WIN-FIX-009 已在本机复测：powershell.exe 托管的 WinForms 编辑框先写子控件，不再对主窗口剪贴板粘贴后报成功。CU-D-610 已在本机复测通过：滚动后旧截图被 stale_viewport 拒绝，重新 observe 后 dry-run 通过。没有放宽校验，也没有新的 GitHub Release。
 
 001–006 的产品修复已在源码里并推送。本轮 007 复测用的是本仓库 debug 构建 `target/debug/vcu.exe`，daemon 也是这份 debug 构建，不是已安装的 Release 包。`vcu --version` 仍打印 crate `0.1.0`。不要把本计划写成已完成，也不要把它说成完整 Windows 产品 CU。

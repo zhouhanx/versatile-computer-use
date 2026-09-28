@@ -1,5 +1,7 @@
 # 浏览器测试用例
 
+2026-09-28：保留 TC-B 历史编号；新增浏览器计划 BR-001…006 的验收组为 TC-BR-001…006，见 [浏览器计划](../PLAN-BROWSER.md) 与 [统一矩阵](METHODOLOGY.md)。新计划不把历史结果改绑当前版本。
+
 > 对应 `docs/testing/BROWSER_TEST_PLAN.md`  
 > ID 前缀 TC-B。本版本不含 App。
 

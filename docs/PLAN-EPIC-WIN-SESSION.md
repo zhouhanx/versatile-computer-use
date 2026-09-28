@@ -1,3 +1,5 @@
+当前索引（2026-09-28）：历史会话记录至 CU-WIN-SESSION-091，本轮未复测。新开发优先 macOS；Windows 后续已规划为 WIN-101…103 → WIN-NEXT（planned，QA-001 后启动），见本文末尾。台账 WIN-SESSION-BASELINE 仅索引历史证据。
+
 更新：2026-09-26。CU-WIN-SESSION-091 科学计算器名为分数的按钮已在本机复测。5 的阶乘是 120。不是分数换算。
 
 更新：2026-09-26。CU-WIN-SESSION-090 科学计算器模数已在本机复测，8 模 3 是 2。不是除法。
@@ -1211,3 +1213,41 @@
 - 没有在 100% DPI 和其他机器上复测。
 - 不放行整个 `ApplicationFrameHost`。
 - 跨源 iframe、trusted 手势、`TC-B-040` 仍未做。
+
+## 后续执行计划（2026-09-28，未实施）
+
+本节为 [全主线计划](PLAN-MAINLINES.md) 的 Windows 分支。与上面的历史成功记录分开；不重复宣称 001…091 在当前版本通过。执行顺序为 QA-001 → WIN-101 → WIN-102 → WIN-103 → WIN-NEXT，不抢占 macOS 优先队列。
+
+### WIN-101：Windows 环境、身份与跨机器基线
+
+状态 planned，P2，依赖 QA-001。
+
+- 落点：`crates/vcu-server/src/app/windows.rs`、`doctor.rs`、`docs/WINDOWS-DEV.md`、现有 `scripts/poc_win_session_*.ps1`。
+- 实施：记录 OS/架构、DPI、语言、App 版本、实际二进制/daemon/扩展路径；复核 HWND/pid/ApplicationFrameHost 识别及控制台和图形编辑框分流；建立复测矩阵与最小自建窗口夹具。
+- 正向验收：在原验证环境与另一台/干净 Windows 环境重复列窗→Scene→图形编辑框写入→独立 WM_GETTEXT/UIA 读回→Abort；Edge 复用 BR-001/003 的本地网页标准。
+- 负向验收：同 pid 的不允许 ApplicationFrameHost 仍拒绝；图形框不误走控制台粘贴；进程退出/权限不同/错误窗口不能报成功；中文输出可解析，缺浏览器或权限记录 blocked。
+- 证据：至少两套环境分别出报告；缺第二环境不得判跨机器通过。历史 CI Server 环境不能自动代表用户 Windows 11。
+
+### WIN-102：窗口截图、坐标与 DPI 矩阵
+
+状态 planned，P2，依赖 WIN-101。
+
+- 落点：Windows 截图/动作 adapter、`stage.rs` 和 Windows Stage/Guide 实现，复用 WIN-VIS 和 session screenshot POC。
+- 实施：明确物理/逻辑像素转换，覆盖 100% 与 150% DPI、窗口移动、遮挡和可用多屏；检查当前共享 Scene/capture 契约是否在 Windows 正确执行。
+- 正向验收：每种 DPI 的自建彩色窗口截图区域正确，Guide 尖端与目标一致，UIA/合法控件路径触发预期状态；记录 `GetCursorPos` 前后不变。
+- 负向验收：PrintWindow 空白且目标被遮挡时拒绝不可靠屏幕复制；窗口移动/关闭、旧截图或错 HWND 不动作；HUD 失败或 Abort 后不执行。没有多屏设备时标未测并收窄宣称范围。
+- 证据：各 DPI 分别记录缩放、frame、截图和独立控件状态；不得以目测胶囊好看替代坐标验收。不是 macOS 系统材质复刻。
+
+### WIN-103：UIA/控件路径与完整任务验收
+
+状态 planned，P2，依赖 WIN-102。
+
+- 落点：`app/windows.rs`、CLI/MCP 契约、`playbooks/desktop.md`、现有计算器/自建控件 POC。
+- 实施：从 001…091 选择代表性且可复核的按钮、输入、列表/树、双击/菜单、滚动/等待/提取用例；串成 CLI 与 MCP tools/call 任务，核对路径与生命周期。
+- 正向验收：计算器任务结果独立读取；自建编辑/选择/菜单窗口的事件计数与值正确；CLI/MCP 均完成观察→动作→验证→Abort，失败也清理自建窗口。
+- 负向验收：不存在目标、不可编辑、失效 ref、禁 Return、超时/重启、错误 alias 不产生目标外副作用；科学按钮按功能实测，不仅凭本地化名称推断。
+- 证据：每项明确 `uia_invoke`、`wm_settext`、`bm_click` 等真实路径；不能把 WM_SETTEXT 写成 ValuePattern，也不能把代表样本写成完整科学函数矩阵。跑 Windows 相关测试、打包及浏览器冻结回归。
+
+### WIN-NEXT：下一批 Windows 总验收
+
+状态 planned，P2，依赖 WIN-103。以 WIN-101…103 报告和环境矩阵为完成条件；本轮不新增 Release，不宣称完整 Windows CU。具体 PowerShell 命令从 [WINDOWS-DEV.md](WINDOWS-DEV.md) 和对应已存在脚本选取；新 runner 在实施时新增，规划阶段不虚构可运行脚本。

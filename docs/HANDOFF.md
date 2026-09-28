@@ -1,6 +1,79 @@
 # 会话交接
 
-更新：2026-09-28。这是 README 与安装文档整理会话的关闭记录，不是排期。产品计划仍以 `docs/PLAN.md` 为准，后续桌面工作仍以 `docs/ROADMAP-CU.md` 为准。
+## 2026-09-28 16:49 CST：本轮会话关闭记录（当前入口）
+
+用户要求保存当前信息后关闭会话。本轮完成的是全部主线规划、验收设计和台账统一；未实施任何新产品功能。优先级已经确定为 macOS，下一开发入口为 MAC-001，不需要重新讨论是否优先 macOS。
+
+### 工作区与保存状态
+
+- 目录：`/Users/zhouhan/ai/versatile-computer-use`；分支 `main`。
+- 关闭时 HEAD 与本地远端跟踪引用 `origin/main` 都是 `8ac82e24fcee48bb7899bf82476553dce9f0869e`。本轮未 fetch，不能据此推断远端此刻没有新提交。
+- **尚未提交、尚未推送。** 工作区有 20 个已跟踪文件修改、4 个未跟踪的新计划文件；均为本轮保留的文档/台账/配置变更，不能清理或覆盖。
+- 四个新文件必须保留：`docs/PLAN-MAINLINES.md`、`docs/PLAN-MACOS.md`、`docs/PLAN-BROWSER.md`、`docs/PLAN-RUNTIME-DELIVERY.md`。仅查看 `git diff --stat` 不会包含这些未跟踪文件。
+- 已修改的配套文件包括 PLAN/ROADMAP/HANDOFF、文档导航与旧设计定位、Windows 三份专项、浏览器/桌面测试计划及 METHODOLOGY、飞书 playbook、AGENTS、`.awr/intake/GOALS.md` 和 `work-ledger.yaml`、两份 AWR project.toml 及 `.gitignore`。
+- AWR 已接入现有 AGENTS.md 规则源；`.awr/mutations/` 是本地配置回执与快照，已忽略，不随产品文档提交。不要提交 AWR 数据库、锁、私有截图或报告。
+
+### 关闭时工作状态
+
+- AWR project revision 为 169；三个源为目标、台账和 AGENTS 规则。台账共 100 项：68 个历史 completed、25 planned、6 draft、1 ready；当前没有 in_progress 工作项，唯一可领取项为 MAC-001。
+- 68 个 completed 包含三条 Windows 历史记录索引；本轮没有重验这些功能。未来 32 项均有计划和验收，不能把规划写成完成。
+- `awr status` 的 waiting/blocked 包含依赖未完成和 draft 不可领取；它们是当前排期的预期结果，不是新发生的产品故障。
+- 本轮没有新建 AWR session 或 claim。`session list` 仍有三条旧 active 记录：`01M2TR5WWZZSNG58HJEKCAQ99G`、`01M2QWSMF94JZ8A9VZSPY22G1V`、`01M2QVJ3YYJSFGAJFR6DDRNYW0`；它们不是本轮会话，未擅自结束或接管。下次不要误称库内所有历史 session 均已关闭。
+
+### 下次执行入口
+
+1. 先读 `AGENTS.md` 和 `docs/PLAN.md`，再读 `docs/PLAN-MAINLINES.md`、`docs/PLAN-MACOS.md`；桌面架构参考 ROADMAP，不能把历史流水当当前排期。
+2. 查看并保留现有工作树。开始开发时先准备 MAC-001 上下文，建立自己的 AWR session/claim 后执行；不要领取 MAC-NEXT 总验收或其他未就绪切片。
+3. MAC-001 首先核对本机实际构建/daemon/helper 身份、权限、超时和 HUD readiness，建立自建窗口基线；不能沿用旧真机快照。
+4. MAC-007 需要 MAC-006 与 BR-004；BR-001…004 从 MAC-001 后推进。BR-005 研究在 MAC-NEXT 后，Windows WIN-101…103 在 QA-001 后。六项 draft 保持候选。
+
+```sh
+rtk git status --short
+rtk proxy awr --project . status
+rtk proxy awr --project . ready
+rtk proxy awr --project . context compile --work MAC-001 --goal 'goal#vcu' --budget 5000
+```
+
+### 验证与未做事项
+
+规划阶段已通过 YAML/ID/依赖/milestone/计划覆盖、20 份 Markdown 链接/围栏、AWR 重索引/intake/context 和 `git diff --check`。关闭前再次查询 intake：无 source issues/warnings，唯一 executable_work 为 MAC-001。
+
+本轮未运行产品测试、未观察或操作真实 App/浏览器、未核对当前 daemon/扩展运行状态、未生成新 Release、未发送消息或调用模型。没有改产品代码、用户活跃安装、系统光标或 Codex CU 安装。下方为本轮详细记录及更早快照；以此关闭记录和权威计划为接续入口。
+
+## 2026-09-28：全部主线计划与验收补齐（本轮详细记录）
+
+用户追加要求将 macOS AX、浏览器及其他主线全部写成具体计划并包含验收。保留 macOS 优先，本轮只更新规划、台账及导航，不实施功能。
+
+- 总入口 `docs/PLAN.md`；新增 `docs/PLAN-MAINLINES.md`（十条主线、批次、依赖、通用验收、应用/策略与候选）、`docs/PLAN-BROWSER.md`（BR-001…006）、`docs/PLAN-RUNTIME-DELIVERY.md`（公共运行时/宿主/视觉/交付/QA）。
+- MAC-001 仍是唯一 ready。MAC-001…006 为桌面基座；BR-001…004 从 MAC-001 后推进，MAC-007 同时依赖 MAC-006 与 BR-004；MAC-008 后 MAC-NEXT 收口。
+- BR-005 是 MAC-NEXT 后的跨源 DOM/trusted/TC-B-040 研究，结论不可行可完成研究但不能宣称功能交付；BR-006 不依赖该研究。BROWSER-NEXT 已改 planned 汇总。
+- CORE-001、HOST-001、POLICY-001、DELIVERY-001、QA-001 定义公共契约、隔离交付及候选验收；APP-001 负责应用能力矩阵。Windows 追加 WIN-101…103，QA-001 后执行，WIN-NEXT 改 planned。
+- 候选为 FEISHU-001、VISION-NEXT、EXTRACT-NEXT、LINUX-NEXT、HARNESS-NEXT、COORD-NEXT，共六项 draft。旧 VISION-001 是历史完成项，保留原证据；新候选使用 VISION-NEXT 避免重用历史 ID。飞书标题移除固定收信人，不代表当前发送授权。
+- `testing/METHODOLOGY.md` 已扩展为跨主线验收矩阵；浏览器/桌面用例仍各自验证，mock、历史 POC、研究结论都不能冒充候选版本真机通过。旧设计说明已加历史定位。
+
+台账为 100 个唯一工作项：68 条历史 completed、25 planned、6 draft、1 ready；没有新增功能完成声明。后续只按就绪依赖领取，不能同时抢真机窗口。所有切片定义了正反向结果、独立读回、清理与证据版本要求；拟新增脚本尚未创建。本轮不发 Release、不发送消息、不调用模型、不改用户活跃安装，未提交或推送。
+
+验证已完成：YAML 解析、ID 唯一、依赖无环、milestone 引用、32 个后续项的计划/验收覆盖、20 份修改 Markdown 的相对链接/围栏及 `git diff --check` 均通过。AWR 三个权威源重索引成功，intake 无 source issues/warnings 或非预期组织缺口，ready 仅 MAC-001，MAC-001 context 为 COMPLETE。仅文档/台账改动，未运行产品代码或 GUI 验收。
+
+## 2026-09-28：上一轮 macOS 优先计划与台账统一（历史）
+
+用户明确要求先统一计划和台账，优先开发 macOS，并先写具体执行计划。本轮仅修改计划、台账及导航，没有实施功能、运行真机动作或发布。
+
+- 新执行入口：`docs/PLAN-MACOS.md`，含代码现状、八个切片、依赖、实现落点、正反向验收、报告和回归要求。
+- 首项 `MAC-001` 为 ready：权限、实际构建/daemon/helper 身份、超时及 HUD 就绪诊断、本机基线。`MAC-002…008` 为 planned，串行依赖；`MAC-NEXT` 为最后总验收。没有产品切片在本轮被 claim 或标成 in_progress。
+- `MAC-NEXT` 的旧发布托管条件已移除，该能力归已完成的 CU-D-700。新主线不再受旧「MAC-NEXT 停放、未点名不开」约束。
+- `FEISHU-001`、`BROWSER-NEXT`、`WIN-NEXT` 为 draft 候选，不在本轮功能队列。飞书历史标题不是发送授权。
+- Windows 历史索引统一为修复 001…009、视觉记录至 013、会话 001…091；台账补三条历史汇总索引。未重验历史报告，未宣称完整 Windows CU。
+- 总计划、路线图、目标、测试计划、AGENTS 与导航均指向新排期。下方全部是历史快照，其「默认不开工」和旧进度不覆盖当前计划。
+- AWR 现有源映射补入 AGENTS.md（复用已有规则，不新增规则文件）；配置预览通过后已应用，MAC-001 的 context compile 不再缺 rules source。配置回执留在本地 `.awr/mutations/`，不进入产品提交。
+
+本轮验证：`git diff --check`、YAML 解析、80 个工作项 ID 唯一性与无环依赖、macOS 串行状态/验收、修改文档链接和代码围栏检查均通过。AWR source reindex 成功，ready 仅 MAC-001，intake 无 source issues/warnings、无非预期组织缺口；MAC-001 context 为 COMPLETE。8 项依赖等待与 3 项 draft 不可领取是排期预期。历史 completed 数量为 68（含新增的三条 Windows 记录索引），没有在本轮重验功能证据。仅文档/台账/源映射及本地回执忽略项改动，未运行产品代码测试；尚未提交或推送。
+
+下一次开发从 `MAC-001` 准备上下文并领取，只在其范围内实施。先读 PLAN → PLAN-MACOS → ROADMAP 架构；AWR 源重索引后检查 ready/intake。规划完成不等于 macOS 功能通过，未来报告必须绑定真实受测版本。保留浏览器回归及既有红线。
+
+## 2026-09-28：README 与安装文档历史交接
+
+下面是此前 README 与安装文档整理会话的关闭记录，不是当前排期。
 
 ## 这次做了什么
 

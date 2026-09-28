@@ -4,6 +4,8 @@
 
 .awr/state.db-*
 .awr/*.lock
+# Local source-configuration receipts and before/after snapshots
+/.awr/mutations/
 
 # Rust
 /target/

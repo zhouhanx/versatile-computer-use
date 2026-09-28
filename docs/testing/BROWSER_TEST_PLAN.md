@@ -1,5 +1,7 @@
 # 浏览器 Computer Use 测试计划
 
+当前入口（2026-09-28）：[PLAN-BROWSER.md](../PLAN-BROWSER.md) 定义 BR-001…006 的实现与验收；[METHODOLOGY.md](METHODOLOGY.md) 定义全主线矩阵。下方 TC-B 为历史浏览器基线，本页只验收 browser 路径，不代表项目不再开发 macOS 桌面。新验收尚未执行。
+
 > 版本：本版本（放弃 App）  
 > 日期：2026-09-18  
 > 作者：zhouhanx（原 zhouhanker）

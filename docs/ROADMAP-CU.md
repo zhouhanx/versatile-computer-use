@@ -1,8 +1,10 @@
 # VCU 对标 Codex Computer Use（含桌面）路线图
 
-更新：2026-09-26。作者 zhouhanx（GitHub 登录名，原 zhouhanker）。当前证据以 docs/PLAN.md 为准，不要把 `e5d47df` 当成当前 HEAD。
+更新：2026-09-28。当前优先级以 [PLAN.md](PLAN.md) 为准；全部主线与验收见 [PLAN-MAINLINES.md](PLAN-MAINLINES.md)，macOS 细则见 [PLAN-MACOS.md](PLAN-MACOS.md)，浏览器细则见 [PLAN-BROWSER.md](PLAN-BROWSER.md)。历史哈希不是当前 HEAD。
 
-**排期切片已停在 CU-D-700。** 本文保留已关闭切片的执行记录，不是进行中工单。Windows 产品会话的已复测切片在 `docs/PLAN-EPIC-WIN-SESSION.md`，目前到 CU-WIN-SESSION-071，仍不是完整 Windows 产品 CU。已发布的浏览器 Bridge **0.2.8** 冻结仍有效，见 [`PLAN.md`](PLAN.md)。桌面工作不得回退浏览器门禁，不得把未测桌面能力写成已完成。
+**新主线：macOS 优先，MAC-001…008 → MAC-NEXT。** 本轮只完成计划，功能未实施。CU-D-010…700 为历史已关闭切片；本文第 3–6 节保留当时的阶段与执行记录，其工期和百分比不作为当前承诺。Windows 专项证据已到 CU-WIN-SESSION-091，仍不是完整 Windows 产品 CU。浏览器 Bridge **0.2.8** 的发布口径和回归门禁保持。
+
+macOS 当前顺序：权限/基线 → 深 AX Scene → 窗口/ref/截图绑定 → 动作读回 → 滚动/等待/提取 → Stage/Guide 生命周期 → 真实任务闭环 → CLI/MCP 回归。MAC-007 另需 BR-004 网页基线。公共运行时/宿主/策略/交付/QA 和 Windows 后续已独立规划；跨源/trusted 为后置研究，飞书发送仍 draft。已完成的发布托管不重复排期。
 
 测试细则：[`testing/DESKTOP_CU_TEST_PLAN.md`](testing/DESKTOP_CU_TEST_PLAN.md)。结构参照：[`design/06-stage-steward.md`](design/06-stage-steward.md)、[`design/08-codex-cu-parity.md`](design/08-codex-cu-parity.md)。
 
@@ -59,7 +61,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 | 把飞书「发送」当自动完成 | 必须用户点名收信人 |
 | 把 AX chrome 树冒充 HTML DOM | `source` 必须诚实 |
 
-### 能力分层（对照）
+### 历史能力分层（立项时估计，非当前测量）
 
 | 层 | 0.2.8 现在 | 本史诗结束后 |
 | --- | --- | --- |
@@ -79,7 +81,7 @@ VCU 仍然是 **宿主 / 模型无关** 的本机运行时（CLI / daemon / MCP�
 6. **切片可独立验收。** 每个 CU-D-* 有命令、证据路径、通过/失败标准。
 7. **对照 `/reference/`，实现进本仓库。** 桌面切片可先看本地 Computer Use 实现再写 VCU 代码；提交物只能是自有源码与 `assets/` 自绘资源。
 
-## 3. 阶段与工作项
+## 3. 历史阶段与工作项（新排期见 PLAN-MACOS）
 
 ### 阶段 0 — 立项与门禁（本文档）
 
@@ -219,7 +221,7 @@ UIA 列窗 / 截图 / Invoke；同一套 CLI/MCP 契约。macOS 未过门禁不�
 
 **本轮现场（2026-09-25 收口，功能完成仍是 2026-09-20）：** CU-D-680/690/700 均已完成：真机 POC（`scripts/poc_cu_d_680.py` / `poc_cu_d_690.py`）、发布 Release `v0.2.8` 并验证 `curl | sh` 与 `vcu self update`；仓库残留 `extension/background.js.bak` 已删。停放：MAC-NEXT 深 AX、FEISHU-001、TC-B-040/跨源 iframe。**CI：** run `36129175359`（`9c69b8c`）`test` 三平台与 `package-macos` / `package-windows` 全绿。此前失败是 observe 假 daemon 竞态、Windows 1MB 栈溢出，以及 `self update` 在 Windows 上误调 bash。不是桌面产品回归，也不等于完整 Windows 产品 CU。2026-09-25 只做文档收口，不新开史诗。下一步大纲见 [`PLAN.md`](PLAN.md)。
 
-## 4. 建议执行顺序（编排）
+## 4. 历史执行顺序（已关闭切片）
 
 ```text
 CU-D-000 文档

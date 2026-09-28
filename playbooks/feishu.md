@@ -1,5 +1,7 @@
 ## 串行视觉闭环（强制）
 
+规划入口：`docs/PLAN-MAINLINES.md` 第 5 节。FEISHU-001 仍为 draft；本 playbook 和历史收信人记录不是当前发送授权，只有用户明确指定的任务、收信人和内容才能进入发送验收。
+
 `snapshot --pixels` 之后 **同一轮** 必须看 `vision_handoff.must_view` 里的 PNG（MCP 会直接带上 image content）。没看图不准 click/type，不准停下来问用户屏幕上有什么。
 
 ## 无 HUD 观察（不发送）
@@ -33,6 +35,6 @@ AX（STEW-016）：窗口 chrome + 侧栏可走 BFS（搜索 ⌘K、消息/日�
 3. 需要焦点时：`click`/`hit` 该 ref → `input_path=ax_frame_hit`，Guide 移到 frame 中心，**不搬 OS 光标、不 HID**。
 4. `--pixels` 会额外写出 `webview_screenshot_*`（messenger-chat 裁帧）。Retina 上 `webview_screenshot_scale=2`（点→像素）。输入/发送仍不在 AX，**不要**假装点到了「发送」。
 5. desktop 会话截图：`vcu screenshot --session <id> --tab proc:Feishu:<pid>` 或 MCP `vcu_screenshot`/`vcu_snapshot` 传 `tab_id`；`mode=full` 带 `webview_screenshot_ref`，screenshot 带 `webview_path`。会升起 Stage HUD，用完必须 `vcu session stop`。
-6. 真发送（FEISHU-001）：视觉打开张北北会话 → 输入 test → 点发送 → **截图里看见 test**。禁止 lark-cli，禁止相信 osascript `ok`。
+6. 真发送（FEISHU-001，仅明确授权后）：视觉打开用户指定会话 → 核对收信人 → 输入用户指定内容 → 核对内容 → 发送一次 → **独立观察正确会话里该内容只出现一次**。发送结果不明先观察，不自动重发。禁止 lark-cli，禁止相信 osascript `ok`。
 
 禁止：`os_click`、`CGWarpMouseCursorPosition`、微信、Codex CU 目录。

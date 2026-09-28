@@ -1,6 +1,8 @@
 # 桌面 Computer Use 测试计划
 
-对应 [`../ROADMAP-CU.md`](../ROADMAP-CU.md)。ID 前缀 **TC-D**。浏览器用例仍以 `BROWSER_TEST_PLAN.md` / `BROWSER_TEST_CASES.md` 为准，桌面切片不得让它们变红。
+对应 [`../ROADMAP-CU.md`](../ROADMAP-CU.md)。历史 ID 前缀 **TC-D**；2026-09-28 起 macOS 新排期见 [`../PLAN-MACOS.md`](../PLAN-MACOS.md)，新增验收前缀 **TC-MAC**（第 9 节，尚未执行）。浏览器用例仍以 `BROWSER_TEST_PLAN.md` / `BROWSER_TEST_CASES.md` 为准，桌面切片不得让它们变红。
+
+全部主线与跨平台验收矩阵见 [METHODOLOGY.md](METHODOLOGY.md)。MAC-007 另依赖 BR-004 浏览器基线；Windows 新批次 WIN-101…103 的 TC-WIN 验收见矩阵与 [专项后续计划](../PLAN-EPIC-WIN-SESSION.md)，不把旧 CI/POC 当新批次通过。
 
 ## 1. 原则
 
@@ -203,9 +205,26 @@ bash scripts/poc_login_state.sh     # 登录态策略；含 os_cursor / Allow �
 - 跨源 iframe / trusted 手势
 - 飞书客户端自动发送
 - 任何微信窗口上的动作
-- Windows `vcu session` 产品路径 / Stage HUD / live Invoke
+- 完整 Windows 产品会话覆盖（专项已有 Stage/live Invoke 等分项证据至 CU-WIN-SESSION-091，不能再笼统写成全部未做）
 - 把 WM_SETTEXT 写成 UIA ValuePattern
 - 完整 Codex CU / 完整 Windows 产品 CU
-- macOS 深 AX 全树（MAC-NEXT，停放）
+- macOS 深 AX 与受限桌面会话本轮验收（MAC-001…008 → MAC-NEXT，已排期未实施）
 
 TC-D-690 原生 `<select>` 与 TC-D-700 Release 托管已通过，不再列入未完成项。
+
+## 9. macOS 优先迭代验收（2026-09-28，未执行）
+
+实现落点、依赖及细则以 [PLAN-MACOS](../PLAN-MACOS.md) 为准。以下全部为计划用例，不是通过记录。现有 mock/HTTP 测试和 `make check` 不能代替真实 macOS 后端验收。
+
+| 验收组 | 工作项 | 必须覆盖 | 证据层 |
+| --- | --- | --- | --- |
+| TC-MAC-001 | MAC-001 | 实际 daemon/helper 权限身份；权限/超时/截图错误分类；进程超时清理；HUD 未就绪拒绝；自建 TextEdit 基线 | 确定性错误测试 + 本机真机 |
+| TC-MAC-002 | MAC-002 | 指定只读窗口；深度 >14、同级子节点 >32；按需子树展开；各类预算截断；密码脱敏；daemon 响应 | parser/schema/夹具 + 原生 AX 真机 |
+| TC-MAC-003 | MAC-003 | 双窗口同名目标；窗口/节点变化使旧 ref/capture 失效；拒绝旧图新树混用；重观察后成功 | 状态/路由测试 + 正反向真机 |
+| TC-MAC-004 | MAC-004 | TextEdit 指定文档输入后独立读回；原生按钮状态变化；错 ref/只读/非零 AX/超时无误操作 | adapter 负向测试 + live 结果证据 |
+| TC-MAC-005 | MAC-005 | 双滚动区只动指定目标；wait 值/名称/角色命中及 miss 超时；extract 同窗脱敏读回 | 夹具/路由测试 + 真机 |
+| TC-MAC-006 | MAC-006 | HUD 启动失败/helper 退出；Escape/CLI/MCP Abort；daemon 重启；无残留；Retina/负坐标/本机显示器点位 | 故障注入 + 坐标测试 + 目视真机 |
+| TC-MAC-007 | MAC-007 | TextEdit、Finder、受控原生控件和浏览器抛页任务闭环；失败也清理；用户资源保持 | 可重复真机任务 |
+| TC-MAC-008 | MAC-008 | CLI/MCP tools/call 正反向一致；隔离安装后的路径；Rust/Node/make check；能力矩阵与接入说明 | 集成/打包 + 本机真机 |
+
+首轮只验证本机可用架构与显示器；没有设备的 1×/多屏/x64 必须标未测，不能用 mock 替代真机结论。报告包含 work ID、受测 source SHA/未提交差异、二进制与 daemon、环境、命令、逐条结果、截图/读回及清理情况。脚本和 `MACOS_CU_RESULTS.md` 在对应实现切片中新增，本次不生成虚假通过报告。

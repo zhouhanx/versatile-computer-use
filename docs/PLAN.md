@@ -1,27 +1,55 @@
-# VCU 当前计划（浏览器版）
+# VCU 当前计划：浏览器基线与 macOS 优先开发
 
-更新：2026-09-28。Windows 开发与扩展更新见 [WINDOWS-DEV.md](WINDOWS-DEV.md)。扩展继续本地加载，不上商店。本文优先于 HANDOFF 历史快照；作者 zhouhanx（GitHub 登录名，原 zhouhanker）。已推送的远端是 `71e8b1d`（接入文档 `3d4e9b1`，README 去掉身份段）。关闭交接在它之后，未推送。不要把 `71e8b1d`、`3d4e9b1`、`4498331`、`dc7b747`、`2c0060e` 或旧哈希 `e5d47df` 当成当前 HEAD。接入说明见 [AGENT.md](AGENT.md)。`README.md` 不写登录名和提交邮箱。Windows 产品会话证据到 CU-WIN-SESSION-091。Windows Stage 的直角黑底已从 Acrylic accent 改成圆角区域模糊，淡阴影画在预乘文字层。CU-D-610 本机复测通过：旧截图 stale_viewport，重新 observe 后 dry-run 通过。
+更新：2026-09-28。用户要求所有主线均有具体计划与验收，保持 macOS 优先。完整主线、批次和验收见 [PLAN-MAINLINES.md](PLAN-MAINLINES.md)，macOS 细则见 [PLAN-MACOS.md](PLAN-MACOS.md)。本文优先于 HANDOFF 历史快照；Git HEAD、推送状态和当前测试状态应实查，不沿用历史哈希。Windows 开发见 [WINDOWS-DEV.md](WINDOWS-DEV.md)，接入见 [AGENT.md](AGENT.md)。扩展继续本地加载，不上商店。
 
 ## 当前节点
 
 **已发布：浏览器版 Bridge 0.2.8。** GitHub Release `v0.2.8`（Latest）已上线，`curl | sh` 与 `vcu self update` 均真机验证通过。浏览器门禁仍有效。`vcu --version` 仍打印 crate `0.1.0`，不代表没更新。
 
-**排期切片停在 CU-D-700。** CU-D-010…700 已关闭。Windows 产品会话的已复测切片见 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md)，目前到 CU-WIN-SESSION-077。这不是完整 Codex CU，也不是完整 Windows 产品 CU。CI 门禁已由 Actions run `36129175359`（代码 `9c69b8c`）恢复：`test` 三平台与 `package-macos` / `package-windows` 全绿。不要 claim `MAC-NEXT` 或 `FEISHU-001`，除非用户点名。
+**下一轮主线：macOS 受限桌面会话。** 历史 CU-D-010…700 已关闭；新排期为 MAC-001…008，MAC-NEXT 为总验收。当前只完成规划，功能切片尚未开工。首项 MAC-001 可领取，后续按依赖推进。旧「MAC-NEXT 未点名不开」已被本次用户的 macOS 优先指令替代；FEISHU-001 仍停放。
 
-## 下一步大纲（未开工）
+Windows 已复测范围以 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md) 的 CU-WIN-SESSION-001…091、[修复计划](PLAN-WINDOWS-FIX.md) 的 WIN-FIX-001…009、[视觉记录](PLAN-WINDOWS-VISUAL.md) 至 WIN-VIS-013 为准。它们是历史证据，不是完整 Windows 产品 CU，也未在本轮复测。CI run `36129175359` 是历史恢复证据，不代表本轮新跑的检查。
 
-默认不新开切片，也不把停放项写成进行中。
+## 全部主线（已写计划，未新增功能验收）
 
-Windows 真机缺口与修复顺序见 [PLAN-WINDOWS-FIX.md](PLAN-WINDOWS-FIX.md)。WIN-FIX-001 至 009 已在这台机器复测。009 修复 powershell 图形窗口被当成控制台粘贴。CU-D-610 已在本机复测：滚动后旧截图被 stale_viewport 拒绝，重新 observe 后 dry-run 通过。没有放宽 scroll_y 校验。不要把它写成完整 Windows 产品 CU。Windows 产品会话的第一扇门见 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md)。Windows 窗口外观对齐见 [PLAN-WINDOWS-VISUAL.md](PLAN-WINDOWS-VISUAL.md)。WIN-VIS-001 至 011 已复测。011 把胶囊内容排成强调色圆点、半粗标题和常规字重的 Esc 取消。008 刷新时采胶囊正后方，不是 macOS 系统材质，也不是完整产品会话。
-可领取项只有停放的 `MAC-NEXT` 与 `FEISHU-001`。
+| 主线 | 工作项 | 计划与验收入口 |
+| --- | --- | --- |
+| macOS AX/窗口/截图 | MAC-001…003 | [macOS 计划](PLAN-MACOS.md) |
+| macOS 动作/滚动/真实 App | MAC-004/005/007、APP-001 | [macOS 计划](PLAN-MACOS.md)、[应用覆盖](PLAN-MAINLINES.md) |
+| Stage/Guide 可见会话 | MAC-006 | [macOS 计划](PLAN-MACOS.md) |
+| Chrome/Edge 登录态与浏览器能力 | BR-001…006、BROWSER-NEXT | [浏览器计划](PLAN-BROWSER.md) |
+| 公共 daemon/会话/路由 | CORE-001 | [运行时计划](PLAN-RUNTIME-DELIVERY.md) |
+| CLI/MCP/宿主接入 | MAC-008、HOST-001 | [运行时计划](PLAN-RUNTIME-DELIVERY.md) |
+| 宿主视觉/可选 provider | VISION-NEXT（draft） | [视觉计划](PLAN-RUNTIME-DELIVERY.md) |
+| Windows UIA/会话/DPI | WIN-101…103、WIN-NEXT | [Windows 后续计划](PLAN-EPIC-WIN-SESSION.md) |
+| 策略/隐私/审计/验收矩阵 | POLICY-001、QA-001 | [全主线计划](PLAN-MAINLINES.md)、[验收方法](testing/METHODOLOGY.md) |
+| 安装/升级/扩展分发/候选包 | DELIVERY-001 | [交付计划](PLAN-RUNTIME-DELIVERY.md) |
 
-若要继续产品工作，先由用户点名一条，再 claim。建议顺序：
+飞书发送、抓取增强、Linux、更多宿主模板与协作增强也有候选范围和研究退出条件，见 [全主线计划第 5–6 节](PLAN-MAINLINES.md)；它们保持 draft，不因列入文档而自动开工。
 
-1. **守门**：CI 或真机回归坏了再修。不扩范围，不把修复写成新产品能力。
-2. **浏览器诚实缺口**（点名才开）：跨源 iframe、trusted 手势、`TC-B-040`。当前已验证的是 `source=extension_dom` 的 viewport 路线。
-3. **Windows 产品会话**（点名才开）：CU-D-060…390 只是 CI 真机，不是 `vcu session` 产品路径。不得把 `WM_SETTEXT` 写成 UIA ValuePattern。
-4. **`MAC-NEXT` 深 AX**（点名才开）：先过 Accessibility 门禁，再谈完整 AX 树。发布托管已由 CU-D-700 落地，不要重复做。
-5. **`FEISHU-001`**（点名收信人才开）：只观察不够时才谈发送。禁止自动发送，禁止碰微信。
+## macOS 优先执行顺序（已排期，未实施）
+
+| 顺序 | 工作项 | 交付目标 | 初始状态 |
+| --- | --- | --- | --- |
+| 1 | MAC-001 | 权限诊断、构建/daemon 版本核对与本机基线 | ready |
+| 2 | MAC-002 | 有预算、可展开、可脱敏的深 AX Scene | planned，依赖 001 |
+| 3 | MAC-003 | 指定窗口、Scene/ref 与截图绑定，拒绝过期目标 | planned，依赖 002 |
+| 4 | MAC-004 | 精确点击和输入，独立读回验证 | planned，依赖 003 |
+| 5 | MAC-005 | 目标滚动、等待和提取 | planned，依赖 004 |
+| 6 | MAC-006 | Stage/Guide 生命周期、Abort 与坐标验证 | planned，依赖 005 |
+| 7 | MAC-007 | TextEdit/Finder/受控原生控件的真实任务闭环 | planned，依赖 MAC-006、BR-004 |
+| 8 | MAC-008 | CLI/MCP 契约、回归、本地打包与能力说明 | planned，依赖 007 |
+| 收口 | MAC-NEXT | 汇总本轮 macOS 验收与限制 | planned，依赖 008 |
+
+每项的代码落点、POC、验收和负向用例见 [macOS 执行计划](PLAN-MACOS.md)。具体状态以 AWR 台账为准；此表为排期起点，不是动态完成记录。首项结束后按真实基线估算工作量，不将旧路线图的周数当新承诺。
+
+跨主线安排：
+
+1. **浏览器基线 BR-001…004**：MAC-001 后可按顺序执行，在 MAC-007 混合任务前完成；macOS 优先，串行使用真机。
+2. **浏览器探索 BR-005**：MAC-NEXT 后研究跨源/trusted/TC-B-040 可行性，不承诺可实现。BR-006 负责稳定路径闭环；BROWSER-NEXT 改为 planned 汇总验收。
+3. **公共运行时与交付**：CORE/HOST/POLICY → DELIVERY → QA，细依赖见台账；本轮不发布新版本。
+4. **Windows**：QA-001 后 WIN-101…103 → WIN-NEXT，已写具体计划并改为 planned；受限环境必须如实记录未测。
+5. **候选**：FEISHU/VISION/EXTRACT/LINUX/HARNESS/COORD 保持 draft；发布托管历史仍归 CU-D-700。
 
 红线不变：不搬系统光标，不代点 Edge Allow，不自动化微信，不改 `~/.codex/computer-use/`，不动用户标签组 1/3。网页细操作必须 `source=extension_dom`。代码提交前要有足够 POC。
 
@@ -35,14 +63,14 @@ Windows 真机缺口与修复顺序见 [PLAN-WINDOWS-FIX.md](PLAN-WINDOWS-FIX.md
 
 ## 目标与范围
 
-对比Codex Computer Use，改进浏览器操作与虚拟光标，采用参考图中的原生彩色可折叠标签组，持续修复问题，每阶段留下可复核记录。
+保持已发布浏览器能力，优先完成 macOS 指定窗口的观察、可靠动作、结果验证与可中止会话。原 PARITY 浏览器交互迭代已作为历史基线保留，每个新切片留下可复核记录。
 
 - 主路径：USER Edge/Chrome + Browser Bridge，保留登录态。宿主已有视觉时不要求`vcu init model`。
 - 网页：明确tab、DOM selector、绑定截图的viewport坐标点击、输入/滚动、原生标签组。
 - 浏览器整窗：macOS窗口ID截图与Guide；AXPress失败必须诚实报错。
-- 0.2.8 冻结：不做桌面 App 产品路径。微信自动化、CDP Allow、OS cursor warp、修改 Codex CU 安装在桌面史诗中也仍然禁止。桌面编排见 ROADMAP-CU。
+- 0.2.8 发布口径仍是浏览器；新增 macOS 能力按 PLAN-MACOS 单独验收。微信自动化、CDP Allow、OS cursor warp、修改 Codex CU 安装仍然禁止。
 
-## 阶段清单
+## 历史浏览器阶段清单
 
 | ID | 阶段 | 当前状态 | 完成证据 / 剩余项 |
 | --- | --- | --- | --- |
@@ -55,9 +83,9 @@ Windows 真机缺口与修复顺序见 [PLAN-WINDOWS-FIX.md](PLAN-WINDOWS-FIX.md
 | PARITY-007 | 多窗口与面板约束 | **本节点完成** | 后台开窗不抢焦点、跨窗拒绝无副作用、组显式保留所属窗口；面板按窗口分区/跨窗禁选 |
 | PARITY-008 | 布局变化与截图可靠性 | **本节点完成** | CSSOM移动/遮挡、input事件、JSON排序往返、截图频率控制、大PNG回执；正向/反向测试均通过 |
 
-以前的TEST/EXTRACT/ETH阶段属于基线。ETH只是L1/L2/L3样本，不是全站抓取；FEISHU-001停放。旧MAC-NEXT深AX不是本版本下一步。TC-B-040通用AX网页像素真点仍不能当成已通过，当前已验证的是extension DOM viewport路线。
+以前的 TEST/EXTRACT/ETH 阶段属于基线。ETH 只是 L1/L2/L3 样本，不是全站抓取；FEISHU-001 停放。MAC-NEXT 已重构为本轮 macOS 总验收。TC-B-040 通用 AX 网页像素真点仍未通过，已验证的是 extension DOM viewport 路线。
 
-## 本节点验收
+## 历史浏览器节点验收（非本轮复测）
 
 - `rtk proxy make check` exit **0**：**102 Rust +35 Node**；mock/extra/login-state、release打包、checksum/curl-install/MCP smoke全部通过。
 - `scripts/poc_browser_parity.py --live`：**32项通过**，测试页安全清理。包含稳定截图允许point dry-run，以及CSS/输入变化必须拒绝；不再只有负向测试。
@@ -68,7 +96,7 @@ Windows 真机缺口与修复顺序见 [PLAN-WINDOWS-FIX.md](PLAN-WINDOWS-FIX.md
 
 完整结果：`docs/testing/BROWSER_PARITY_RESULTS.md`；机器可读索引：`docs/testing/BROWSER_PARITY_NODE_REPORT.json`。门禁在定版提交前的工作树通过；定版 SHA 为 `d8ee9ad`。
 
-## 下一阶段（按优先级）
+## 历史切片记录（保留当时状态，不用于领取下一任务）
 
 - [x] **P1 / PARITY-004**：同背景浅色页对照 native/DOM/Guide 的 idle/click/move；DOM 按 tab zoom 逆缩放。发现 halo 过小过淡后已加大圆雾并统一 Guide。约束仍有效：不再向用户索要截图；不退回长箭尾/硬圆环；仅 mismatch 时改代码；可参考开源/公开技术；不修改私有安装。
 - [x] **P1 / PARITY-005**：Chrome 真机 DOM extract/click/type 已过（counter 0→1，input=chrome-live，遮挡拒绝）。原生 popup 已过。用户 1/3 组未改。

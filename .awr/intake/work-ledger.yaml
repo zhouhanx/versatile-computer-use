@@ -1,10 +1,32 @@
 # VCU ledger
+# Current tracks: docs/PLAN-MAINLINES.md; macOS first (2026-09-28 user direction).
+# completed historical items retain their original evidence; they are not fresh test results.
 milestones:
   - id: m-phase1-mvp
     title: 一期 MVP + 安装/MCP/macOS
     status: completed
     summary: curl 安装、真 MCP、macOS app/launchd、全 POC 门禁
     acceptance: ["poc_install_curl", "mcp_stdio", "all pocs"]
+  - id: m-macos-desktop
+    title: macOS 受限桌面会话
+    status: planned
+    summary: 2026-09-28 用户明确优先 macOS；MAC-001…008 后由 MAC-NEXT 总验收，功能尚未实施
+    acceptance: ["指定窗口深 AX 与 Scene/ref/capture 绑定", "受控 App 动作后独立验证", "Stage/Abort 与 CLI/MCP 闭环", "浏览器回归和明确能力边界"]
+  - id: m-browser-next
+    title: 浏览器基线、可靠性与复杂目标研究
+    status: planned
+    summary: BR-001…004 为 macOS 混合任务基线，006 为产品闭环，005 后置可行性研究
+    acceptance: ["Chrome/Edge 路由及 DOM/截图正反向真机证据", "CLI/MCP 闭环", "复杂目标支持边界有研究结论"]
+  - id: m-runtime-delivery
+    title: 公共运行时、宿主、策略与候选交付
+    status: planned
+    summary: 复用 macOS/浏览器证据补跨主线契约，默认不发布
+    acceptance: ["会话路由隔离", "公共宿主契约与策略一致", "隔离安装及候选验收矩阵"]
+  - id: m-windows-next
+    title: Windows 跨环境与产品流程下一批验收
+    status: planned
+    summary: QA-001 后 WIN-101…103；历史 001…091 不自动成为新验收
+    acceptance: ["两环境基线", "100%/150% DPI 与截图门禁", "CLI/MCP 真机任务闭环"]
 
 work_items:
   - id: PARITY-007
@@ -1069,19 +1091,19 @@ work_items:
     depends_on: ["STEW-004"]
 
   - id: FEISHU-001
-    title: Feishu App vision send test to 张北北
-    status: ready
+    title: 飞书客户端明确授权后的发送验证候选
+    status: draft
     goal: goal#vcu
     kind: delivery
-    milestone: m-phase1-mvp
     required: false
     priority: P3
-    summary: PARKED this version. App CU out of scope. Do not execute until browser suite is the product default.
+    summary: PLAN-MAINLINES 第 5 节。停放候选；历史收信人不构成当前发送授权，真发送需用户明确任务/收信人/内容。
     acceptance:
-      - "parked — not in this version"
-    next_action: parked; browser-only version first
-    evidence: ["docs/PLAN.md"]
-    depends_on: ["BROWSER-TEST-001"]
+      - "明确授权后通过 VCU+宿主视觉核对会话/收信人/内容，发送一次并独立看到消息气泡"
+      - "错会话、不可达、发送超时或结果不明不盲重发；不以 lark-cli 或 osascript ok 替代验收"
+    next_action: 保持 draft；本轮不发送，不领取
+    evidence: []
+    depends_on: ["APP-001"]
 
   - id: ETH-001
     title: Etherscan L1/L2/L3 with login cookies
@@ -1173,19 +1195,497 @@ work_items:
     depends_on: []
 
   - id: MAC-NEXT
-    title: macOS 深 AX / 正式发布托管
+    title: macOS 受限桌面会话总验收
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-macos-desktop
+    required: true
+    priority: P1
+    summary: 2026-09-28 用户明确 macOS 优先；重构为 MAC-001…008 后的总验收，尚未实施。发布托管归 CU-D-700，不重复开发。
+    acceptance:
+      - "MAC-001…008 各项验收均有绑定实际版本的报告，旧报告不改绑新 SHA"
+      - "最终候选版本完成受控 macOS 任务闭环、CLI/MCP 集成及浏览器回归"
+      - "能力矩阵区分本机真机、mock、未测架构/显示器/App，计划与台账一致"
+    next_action: 等待 MAC-008 完成后汇总证据与限制；当前从 MAC-001 开始
+    evidence: []
+    depends_on: ["MAC-008"]
+
+  - id: MAC-001
+    title: macOS 权限、构建与基线诊断
     status: ready
     goal: goal#vcu
     kind: delivery
-    milestone: m-phase1-mvp
+    milestone: m-macos-desktop
+    required: true
+    priority: P0
+    summary: PLAN-MACOS 第 4 节首项；核对实际 daemon/helper 身份与权限、超时/进程生命周期、HUD readiness 及自建窗口基线，尚未实施。
+    acceptance:
+      - "报告记录 OS/架构、source SHA 或工作树差异、二进制/daemon 路径及权限诊断"
+      - "缺权限/超时/截图失败分类测试通过；不会延迟 kill 已退出或复用 pid；HUD 未就绪拒绝动作"
+      - "授权环境下自建 TextEdit 窗观察通过；现有 POC 基线逐项记 pass/fail/未测，权限阻塞不算完成"
+    next_action: 按 docs/PLAN-MACOS.md 准备上下文并领取本项；先记录本机基线，再修实际缺口
+    evidence: []
+    depends_on: []
+
+  - id: MAC-002
+    title: macOS 指定窗口与有预算的深 AX Scene
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-macos-desktop
+    required: true
+    priority: P0
+    summary: 先建只读 pid/窗口身份，再做子树展开、层级/能力与脱敏；新 Scene 在 MAC-003 通过前不用于 live mutation。
+    acceptance:
+      - "同 App 双窗口可明确选择；深度超过 14、同级超过 32 子元素的夹具目标可按需展开到达"
+      - "节点/深度/超时/输出预算截断原因明确，密码值不进入 Scene 或日志，异常节点不阻塞 daemon"
+      - "默认预算和耗时有夹具及 TextEdit/Finder 测量，Scene 可选字段兼容现有 mock/Windows/MCP"
+    next_action: MAC-001 完成后实现只读选窗与最小深树夹具 POC，再固化 Scene schema
+    evidence: []
+    depends_on: ["MAC-001"]
+
+  - id: MAC-003
+    title: macOS Scene 引用与窗口截图绑定
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-macos-desktop
+    required: true
+    priority: P0
+    summary: 基于 MAC-002 窗口身份绑定 scene/ref/capture；拒绝重新遍历 eN 错配和旧截图新树混用。
+    acceptance:
+      - "双窗口/同名控件/窗口重排关闭/节点插入移除/旧引用和旧截图均有负向测试且无误操作"
+      - "歧义目标明确拒绝；截图绑定窗口几何缩放和观察代次，失效要求重新观察"
+      - "新观察的正确目标 dry-run/live 通过且不静默抢焦点，不自动重放 mutation"
+    next_action: MAC-002 完成后先证明旧 eN/旧 capture 失效，再接精确动作路由
+    evidence: []
+    depends_on: ["MAC-002"]
+
+  - id: MAC-004
+    title: macOS 精确点击输入与动作后读回
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-macos-desktop
+    required: true
+    priority: P0
+    summary: 按 Scene 能力执行 AXPress/AXSetValue，收紧 TextEdit 首文本区回退；动作回执与验证结果分开。
+    acceptance:
+      - "指定 TextEdit 自建文档写入唯一标记并独立读回，原生测试按钮改变可验证状态"
+      - "错误 ref/只读控件/非零 AX/超时不改其他目标，不把调用成功当业务成功"
+      - "os_cursor_used=false；Return/终端换行门禁与 mutation 不重放测试通过"
+    next_action: MAC-003 完成后跑精确目标 POC，再补独立读回与动作能力检查
+    evidence: []
+    depends_on: ["MAC-003"]
+
+  - id: MAC-005
+    title: macOS 目标滚动、等待与提取
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-macos-desktop
+    required: true
+    priority: P1
+    summary: 修正 scroll 忽略 ref，wait/extract 使用同窗新观察与明确定位条件。
+    acceptance:
+      - "双滚动区仅指定区变化，滚动状态独立读回；不支持的动作明确失败"
+      - "wait 按值/名称/角色命中正确控件，缺失目标诚实超时且不误用旧 ref"
+      - "extract 读回 MAC-004 标记，来源及脱敏规则与当前窗口 Scene 一致"
+    next_action: MAC-004 完成后用双滚动区夹具验证目标路由与重新观察
+    evidence: []
+    depends_on: ["MAC-004"]
+
+  - id: MAC-006
+    title: macOS Stage/Guide 生命周期与坐标
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-macos-desktop
+    required: true
+    priority: P1
+    summary: 补 HUD/Guide 可见性、Escape/Abort、helper 故障和 daemon 重启清理；统一多屏坐标。
+    acceptance:
+      - "HUD 不可见、helper 退出或 Abort 后动作拒绝；CLI/MCP/Escape 清理自建 HUD/Guide"
+      - "daemon 重启不复用旧 Scene，受控异常路径无残留资源"
+      - "Retina/负坐标确定性测试及本机显示器实测通过；缺少设备的显示器/缩放写明未测"
+    next_action: MAC-005 完成后做故障注入与可见性握手验证，再复测 Guide 点位
+    evidence: []
+    depends_on: ["MAC-005"]
+
+  - id: MAC-007
+    title: macOS 真实应用任务闭环
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-macos-desktop
+    required: true
+    priority: P1
+    summary: 串联 TextEdit、Finder、受控原生控件与浏览器抛页的观察—动作—验证；仅用自建资源。
+    acceptance:
+      - "TextEdit 写入滚动提取闭环、Finder 临时目录 reveal/open_path 新窗验证和原生按钮状态读回均有真机证据"
+      - "浏览器/原生切换 source 正确，NSWorkspace 不冒充 AX 图标点击；Terminal 不执行命令"
+      - "成功和中途失败均 Abort 并清理自建资源，用户已有文档及标签组 1/3 未改"
+    next_action: MAC-006 和 BR-004 完成后复用 desktop/browser POC，组成可重复任务并记录负向流程
+    evidence: []
+    depends_on: ["MAC-006", "BR-004"]
+
+  - id: MAC-008
+    title: macOS CLI/MCP 契约与交付回归
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-macos-desktop
+    required: true
+    priority: P1
+    summary: 统一宿主接口错误/目标/Scene/source/Abort 语义，隔离前缀本地打包验证；不包含发布。
+    acceptance:
+      - "CLI 与 MCP tools/call 各完成观察—动作—读回—Abort，权限/超时/旧 ref 负向结果一致"
+      - "cargo workspace、Node 扩展测试与 make check 通过，本地打包安装至隔离前缀可复测"
+      - "能力矩阵和 playbook 记录受测版本、App、架构/显示器限制，arm64 证据不外推 x64"
+    next_action: MAC-007 完成后执行接口和集成回归，整理 docs/testing/MACOS_CU_RESULTS.md，交 MAC-NEXT 收口
+    evidence: []
+    depends_on: ["MAC-007"]
+
+  - id: BROWSER-NEXT
+    title: 浏览器基线与复杂目标研究总验收
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-browser-next
+    required: true
+    priority: P2
+    summary: PLAN-BROWSER 的 BR-001…006 汇总；BR-005 仅研究，结论不支持可关闭研究但不能宣称交付能力。
+    acceptance: ["BR-001…004/006 有当前受测环境正反向和 CLI/MCP 闭环证据", "BR-005 分别给跨源 DOM/trusted/TC-B-040 可行性结论，synthetic 不写成 trusted", "能力矩阵区分稳定路径、研究结论和未支持目标"]
+    next_action: BR-005 与 BR-006 完成后按 docs/PLAN-BROWSER.md 收口
+    evidence: []
+    depends_on: ["BR-005", "BR-006"]
+
+  - id: WIN-NEXT
+    title: Windows 跨机器 DPI 与产品流程总验收
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-windows-next
+    required: true
+    priority: P2
+    summary: PLAN-EPIC-WIN-SESSION 后续节 WIN-101…103；macOS+浏览器候选 QA 后启动，历史证据不充当本轮结果。
+    acceptance: ["两环境、100%/150% DPI、代表性 CLI/MCP 任务及负向清理证据齐全", "保留 source/input_path 边界，WM_SETTEXT 不写成 ValuePattern", "限制和未测设备明确，不宣称完整 Windows 产品 CU"]
+    next_action: WIN-103 完成后汇总下一批 Windows 证据和能力矩阵
+    evidence: []
+    depends_on: ["WIN-103"]
+
+  - id: BR-001
+    title: macOS Chrome/Edge 登录态与连接基线
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-browser-next
+    required: true
+    priority: P0
+    summary: PLAN-BROWSER；复测 USER 扩展版本、ping/reload/断连恢复，发现缺口才修。
+    acceptance: ["macOS Chrome/Edge 各有 USER ping/observe 和重载后版本一致证据", "无扩展、stale SW、断连不假成功；不冷启动或改用户 profile", "不代点 Allow，测试标签可清理"]
+    next_action: MAC-001 后按 PLAN-BROWSER 的自建页面与连接矩阵建立浏览器基线
+    evidence: []
+    depends_on: ["MAC-001"]
+
+  - id: BR-002
+    title: 多浏览器窗口标签与原生组隔离
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-browser-next
+    required: true
+    priority: P0
+    summary: PLAN-BROWSER；显式 browser/tab/window、last observe、撞号和原生标签组边界。
+    acceptance: ["Chrome/Edge 自建标签路由正确，后台打开和组操作保留焦点及所属窗口", "撞号/错浏览器/过期 observe/跨窗分组明确拒绝且无部分副作用", "仅清理自建组页，用户标签组 1/3 保持"]
+    next_action: BR-001 后复用路由与分组 POC，并核对标签前后状态
+    evidence: []
+    depends_on: ["BR-001"]
+
+  - id: BR-003
+    title: DOM 动作、表单、滚动等待与提取
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-browser-next
+    required: true
+    priority: P0
+    summary: PLAN-BROWSER；扩展 HTML 路径与同源 frame/canvas 合成能力矩阵，业务结果独立读回。
+    acceptance: ["click/type/select/hover/scroll/wait/extract 各有页面值或事件证据且 source=extension_dom", "多匹配/遮挡/只读/缺失目标拒绝，wait miss 超时且值不误改", "同源 frame/canvas 只宣称实测 synthetic 能力，不覆盖跨源或 trusted"]
+    next_action: BR-002 后用 localhost 夹具覆盖正反向 DOM/表单与可重复读回
+    evidence: []
+    depends_on: ["BR-002"]
+
+  - id: BR-004
+    title: 浏览器截图新鲜度、缩放与一次消费
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-browser-next
+    required: true
+    priority: P0
+    summary: PLAN-BROWSER；layout/scroll/zoom/CSSOM/输入变化、限流、大 PNG 与 capture 绑定。
+    acceptance: ["新截图像素点击恰好一次且页面计数读回，缩放和内容范围匹配", "旧布局/滚动/过期/已消费/错 tab capture 拒绝，稳定布局 dry-run 不误拒", "截图限流不触发 mutation 重放，大 PNG 可解析"]
+    next_action: BR-003 后复用 parity 与 CU-D-610 POC，完成 MAC-007 网页前置门禁
+    evidence: []
+    depends_on: ["BR-003"]
+
+  - id: BR-005
+    title: 跨源 DOM 与 trusted/TC-B-040 可行性研究
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-browser-next
+    required: true
+    priority: P2
+    summary: 研究交付而非能力承诺；跨源 DOM、trusted 手势、AX 网页真点分别评估，不能通过修改红线求成功。
+    acceptance: ["受控跨源夹具输出可行/不可行/缺证据结论及最小 POC，路径来源诚实", "trusted 必须有真实事件/业务读回证据，AXWebArea 不冒充 HTML 点击", "不可行报告可完成研究，但功能标未交付；不得要求 CDP Allow/HID/系统光标"]
+    next_action: MAC-NEXT 与 BR-004 后研究最小可行路径；后续产品化另立具体切片
+    evidence: []
+    depends_on: ["BR-004", "MAC-NEXT"]
+
+  - id: BR-006
+    title: 浏览器 CLI/MCP 任务闭环验收
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-browser-next
+    required: true
+    priority: P1
+    summary: 稳定 browser 路径的两入口契约及结果闭环，不等待 BR-005 探索。
+    acceptance: ["CLI/MCP 各完成自建页面 open/observe/输入点击/独立读回/清理", "target/source/capture 和错误一致；断连超时不重放 mutation 或误落另一浏览器", "能力说明区分 BR-005 研究，已有用户页与组不变"]
+    next_action: BR-004 和 MAC-008 后跑浏览器宿主闭环与结果矩阵
+    evidence: []
+    depends_on: ["BR-004", "MAC-008"]
+
+  - id: CORE-001
+    title: 公共 daemon 会话路由隔离与恢复
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-runtime-delivery
+    required: true
+    priority: P1
+    summary: PLAN-RUNTIME-DELIVERY；复用 runtime/state/api，验证目录、端点、会话和 surface 隔离。
+    acceptance: ["两个临时用户目录独立运行，同目录重复 daemon 拒绝，重启只读恢复且旧动作引用失效", "错 token/session/revision 与重复或超时 mutation 无跨会话副作用", "回执路径与清理可追溯，不泄露 token"]
+    next_action: MAC-006 后先核对现有锁和状态机，最小 POC 后修真实契约缺口
+    evidence: []
+    depends_on: ["MAC-006"]
+
+  - id: HOST-001
+    title: 公共 CLI/MCP 契约与宿主接入
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-runtime-delivery
+    required: true
+    priority: P1
+    summary: PLAN-RUNTIME-DELIVERY；复用 MAC-008 平台证据，补公共错误/协议/配置与混合 surface 契约。
+    acceptance: ["真实 CLI 与 MCP tools/call 的 source/target/result/Abort 和错误一致", "畸形帧/未知工具/缺字段/权限/超时不回退另一 session 或 shell", "隔离宿主配置可完成握手，print-config 指向绝对路径，不覆盖活跃配置"]
+    next_action: CORE-001 与 MAC-008 后对同请求运行两入口矩阵
+    evidence: []
+    depends_on: ["CORE-001", "MAC-008"]
+
+  - id: POLICY-001
+    title: 跨主线策略、隐私与审计一致性
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-runtime-delivery
+    required: true
+    priority: P0
+    summary: PLAN-MAINLINES 第 4 节；复用既有门禁，核对新增 Scene/日志与全部入口。
+    acceptance: ["微信/无HUD/盲Return/错目标拒绝且无旁路，使用mock不操作微信", "密码与凭据不进入 Scene/日志，审计关闭与开启分别验证", "审计可关联 session/target/source/input_path/result，不引入 Allow/HID/光标绕过"]
+    next_action: CORE-001 后建立策略入口与测试映射，临时目录中验证日志和拒绝路径
+    evidence: []
+    depends_on: ["CORE-001"]
+
+  - id: DELIVERY-001
+    title: 隔离安装升级、打包与扩展分发
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-runtime-delivery
+    required: true
+    priority: P1
+    summary: PLAN-RUNTIME-DELIVERY；复用 CU-D-700 流程验证新候选包，不重复计历史发布，不实际发布。
+    acceptance: ["临时前缀安装/升级后的二进制、Stage、扩展版本和校验和一致，health/ping/MCP可用", "坏包/缺资产/校验失败/旧进程冲突诚实失败并保持旧安装可恢复", "清理仅限临时资源，用户目录/活跃配置不改，不发Release不上商店"]
+    next_action: HOST-001、BR-006、POLICY-001 后执行隔离交付验证
+    evidence: []
+    depends_on: ["HOST-001", "BR-006", "POLICY-001"]
+
+  - id: QA-001
+    title: macOS 浏览器与公共能力候选验收矩阵
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-runtime-delivery
+    required: true
+    priority: P1
+    summary: PLAN-RUNTIME-DELIVERY 及 testing/METHODOLOGY；平台真机与mock分开，Windows随后独立验收。
+    acceptance: ["候选版本定向POC、Rust/Node/make check和隔离安装通过，每项声明有版本/环境/证据", "采集 startup/observe/action-readback/Abort/MCP 的重复性能基线与失败样本", "blocked/not-run/flaky 不算pass，旧报告不改绑新SHA，未测平台明确"]
+    next_action: DELIVERY-001 后形成 RUNTIME_DELIVERY_RESULTS 与矩阵，不用AWR完成数替代测试
+    evidence: []
+    depends_on: ["DELIVERY-001"]
+
+  - id: APP-001
+    title: 原生与 Electron 应用兼容矩阵
+    status: planned
+    goal: goal#vcu
+    kind: delivery
     required: false
     priority: P2
-    summary: 发布托管已由 CU-D-700 落地（Release v0.2.8 Latest；curl | sh 与 vcu self update 均已真机验证）。本项只剩「辅助功能授权后完整 AX 树」未做，继续停放
-    acceptance:
-      - "GitHub Releases 有 v* 资产后，curl | sh 与不带宽带的 vcu self update 均可用"
-      - "无 Release 时 self update 失败要透传 installer stderr 并提示 VCU_BASE_URL=file://... 本地通路"
-    next_action: 深 AX 未排期（停放）；启用前先过 Accessibility 门禁与 docs/ROADMAP-CU.md 的阶段 1–3 结论
-    evidence: ["docs/RELEASE.md", "docs/INSTALL.md"]
+    summary: PLAN-MAINLINES 第5节；复用MAC-007，扩展只读观察与能力边界，不隐含飞书发送。
+    acceptance: ["TextEdit/Finder核心闭环有当前版本证据，其他App各能力格标支持/拒绝/未测", "指定窗口截图与AX外壳诚实区分，缺权限或空树不报完整内容", "系统设置只读、Terminal不执行命令、飞书不发送，证据不含用户私有数据"]
+    next_action: MAC-NEXT 后先做现有App只读兼容矩阵，再决定具体应用补缺
+    evidence: []
+    depends_on: ["MAC-NEXT"]
+
+  - id: WIN-101
+    title: Windows 身份与跨机器基线
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-windows-next
+    required: true
+    priority: P2
+    summary: PLAN-EPIC-WIN-SESSION 后续节；核对版本、HWND/pid、权限和图形框/控制台分流。
+    acceptance: ["两套Windows环境分别完成自建窗观察/输入/独立读回/Abort，记录语言/DPI/App版本", "错误alias/退出进程/图形框误走剪贴板被拒，中文输出可解析", "Edge本地页基线独立通过；缺第二环境不算跨机器通过"]
+    next_action: QA-001 后准备Windows真机与自建夹具，保留历史证据不外推
+    evidence: []
+    depends_on: ["QA-001"]
+
+  - id: WIN-102
+    title: Windows 截图坐标与 DPI 验收
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-windows-next
+    required: true
+    priority: P2
+    summary: PLAN-EPIC-WIN-SESSION 后续节；100%/150%与可用多屏，截图和Guide/动作同一几何。
+    acceptance: ["100%及150%DPI各有自建窗截图、Guide点位和独立动作状态证据，GetCursorPos不变", "空白遮挡截图/错HWND/旧引用或截图拒绝，无HUD/Abort后不动作", "缺多屏设备写未测，不把视觉外观当坐标通过"]
+    next_action: WIN-101 后复用WIN-VIS及截图POC建立逐环境正反向矩阵
+    evidence: []
+    depends_on: ["WIN-101"]
+
+  - id: WIN-103
+    title: Windows 代表控件与 CLI/MCP 任务闭环
+    status: planned
+    goal: goal#vcu
+    kind: delivery
+    milestone: m-windows-next
+    required: true
+    priority: P2
+    summary: PLAN-EPIC-WIN-SESSION 后续节；从001…091复用代表样本，按真实input_path与事件/值验证。
+    acceptance: ["计算器及自建编辑/选择/菜单等任务由CLI/MCP各跑观察—动作—读回—Abort", "错目标/禁Return/超时重启无目标外副作用，成功失败均清理自建窗", "Windows测试打包和浏览器回归通过，WM_SETTEXT不写成ValuePattern，样本不写完整函数矩阵"]
+    next_action: WIN-102 后整理代表用例runner和最终环境/能力矩阵
+    evidence: []
+    depends_on: ["WIN-102"]
+
+  - id: VISION-NEXT
+    title: 宿主视觉与可选 provider 边界候选
+    status: draft
+    goal: goal#vcu
+    kind: delivery
+    required: false
+    priority: P2
+    summary: PLAN-RUNTIME-DELIVERY；默认无需额外模型，离线配置/错误测试，规划阶段不调用模型。
+    acceptance: ["无模型配置时宿主截图交接正常，默认外部请求计数为0", "mock配置/缺key/超时/非2xx/空输出有界失败且不泄密", "真实provider调用另有明确配置与授权，离线报告不宣称视觉能力交付"]
+    next_action: 保持draft；重新排期时先用离线夹具确认边界，不加载真实key
+    evidence: []
+    depends_on: []
+
+  - id: EXTRACT-NEXT
+    title: 分页滚动加载与结构化提取候选
+    status: draft
+    goal: goal#vcu
+    kind: delivery
+    required: false
+    priority: P2
+    summary: PLAN-MAINLINES 第6节；先本地有限分页DOM夹具，网络层是否需要另评估。
+    acceptance: ["有限数据集行数/去重/分页结束可核对，缺页/超时标不完整", "ETH样本不冒充全站能力，不导出cookies或抓取无授权站点"]
+    next_action: 保持draft；先定义有限数据集及输出schema再排期
+    evidence: []
+    depends_on: ["BR-003"]
+
+  - id: LINUX-NEXT
+    title: Linux 源码构建与浏览器路径候选
+    status: draft
+    goal: goal#vcu
+    kind: delivery
+    required: false
+    priority: P3
+    summary: PLAN-MAINLINES 第6节；先明确发行版/架构/窗口系统，不宣称已有预编译包或桌面后端。
+    acceptance: ["干净环境源码构建和CLI/MCP/自建网页POC有环境与结果记录", "未支持桌面或打包明确标记，发布另行安排"]
+    next_action: 保持draft；平台选定后做最小可行构建与浏览器验证
+    evidence: []
+    depends_on: ["HOST-001"]
+
+  - id: HARNESS-NEXT
+    title: 更多宿主模板与可选 AWR 桥接候选
+    status: draft
+    goal: goal#vcu
+    kind: delivery
+    required: false
+    priority: P3
+    summary: PLAN-MAINLINES 第6节；复用标准CLI/MCP，不引入产品对特定宿主的强依赖。
+    acceptance: ["隔离配置中的模板能握手/观察/动作/Abort，不覆盖其他配置", "卸载模板可恢复，未测宿主不列为兼容"]
+    next_action: 保持draft；HOST-001完成后按明确宿主选择一份模板POC
+    evidence: []
+    depends_on: ["HOST-001"]
+
+  - id: COORD-NEXT
+    title: 多客户端协作与借用归还增强候选
+    status: draft
+    goal: goal#vcu
+    kind: delivery
+    required: false
+    priority: P3
+    summary: PLAN-MAINLINES 第6节；先核对现有coordination状态机，不默认新建多Agent框架。
+    acceptance: ["两个受控客户端不能同时持有冲突mutation所有权", "超时断连释放租约且任务可追溯，不引入自动发送或无限后台执行"]
+    next_action: 保持draft；CORE-001完成后明确需要增强的协作场景
+    evidence: []
+    depends_on: ["CORE-001"]
+
+  - id: WIN-FIX-BASELINE
+    title: Windows 修复历史记录索引（001…009）
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: false
+    priority: P2
+    summary: 汇总 2026-09-26 专项已复测记录；完成表示历史记录已整理，本轮未复测，不代表当前 HEAD 全量通过。
+    acceptance: ["WIN-FIX-001…009 的实现/命令/结果可从专项文档追溯"]
+    next_action: 历史基线保留；后续工作见 WIN-NEXT
+    evidence: ["docs/PLAN-WINDOWS-FIX.md"]
+    depends_on: []
+
+  - id: WIN-VIS-BASELINE
+    title: Windows 视觉历史记录索引（至013）
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: false
+    priority: P2
+    summary: 汇总 2026-09-26 视觉记录至 WIN-VIS-013；013 为顶部真机截图记录，不新增完整矩阵验收结论，本轮未复测。
+    acceptance: ["视觉专项保留各切片证据、最终圆角模糊/文字层阴影状态与 DPI 未测边界"]
+    next_action: 历史基线保留；其他 DPI/机器验收见 WIN-NEXT
+    evidence: ["docs/PLAN-WINDOWS-VISUAL.md"]
+    depends_on: []
+
+  - id: WIN-SESSION-BASELINE
+    title: Windows 会话历史记录索引（001…091）
+    status: completed
+    goal: goal#vcu
+    kind: delivery
+    required: false
+    priority: P2
+    summary: 汇总 2026-09-26 会话专项已复测记录至 091；完成表示记录整理，本轮未复测，不等于完整 Windows 产品 CU。
+    acceptance: ["001…091 分项命令/结果和具体 input_path 可追溯，未做事项保留在专项文档"]
+    next_action: 历史基线保留；下一阶段见 WIN-NEXT
+    evidence: ["docs/PLAN-EPIC-WIN-SESSION.md"]
     depends_on: []
 
   - id: CU-D-680

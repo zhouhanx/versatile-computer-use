@@ -14,6 +14,18 @@ adapter = "markdown-heading-v1"
 key_prefix = "goal"
 
 [[sources]]
+domain = "rules"
+role = "primary"
+path = "AGENTS.md"
+adapter = "markdown-rules-v1"
+
+[sources.options]
+key_prefix = "rule"
+severity = "hard"
+scope = "project"
+value = "*"
+
+[[sources]]
 domain = "ledger"
 role = "primary"
 path = ".awr/intake/work-ledger.yaml"

@@ -1,5 +1,7 @@
 # 需求边界与分期
 
+历史需求说明：下文的一期/二期及默认路径为旧设计记录。2026-09-28 已将 macOS、浏览器、公共运行时、Windows、交付和候选项统一到 [PLAN-MAINLINES.md](../PLAN-MAINLINES.md)，其切片/依赖/验收优先；旧「确认前不写 overlay」不覆盖当前排期。
+
 版本：0.2-design
 
 主路径已改为 Stage+Steward（`docs/design/06-stage-steward.md`）。下面「一期已实现」仍描述 **浏览器 MVP**；desktop surface 是**下一实现史诗**，确认设计前不写 overlay 代码。
