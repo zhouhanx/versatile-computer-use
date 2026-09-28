@@ -64,7 +64,7 @@ Rust 改动才需要重建。本机工具链是 `cargo +stable-x86_64-pc-windows
 
 ## 提交并推送
 
-测试通过后再提交。只提交这次改到的产品文件。不要提交 AWR 本地运行目录，不要改写历史。作者是 `zhouhanker <zhouhanker@gmail.com>`。远端是 `git@github.com:zhouhanker/versatile-computer-use.git`。
+测试通过后再提交。只提交这次改到的产品文件。不要提交 AWR 本地运行目录，不要改写历史。作者是 `zhouhanx <zhouhanker@gmail.com>`。GitHub 登录名是 `zhouhanx`（原 `zhouhanker`）。远端是 `git@github.com:zhouhanx/versatile-computer-use.git`，HTTPS 为 `https://github.com/zhouhanx/versatile-computer-use.git`。
 
 ```powershell
 git push origin main

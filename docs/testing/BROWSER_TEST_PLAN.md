@@ -2,7 +2,7 @@
 
 > 版本：本版本（放弃 App）  
 > 日期：2026-09-18  
-> 作者：zhouhanker
+> 作者：zhouhanx（原 zhouhanker）
 
 ## 1. 目标
 

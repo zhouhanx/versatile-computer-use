@@ -1,6 +1,6 @@
 # 会话交接
 
-更新：2026-09-26。这是当前 Windows 会话的上下文，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。
+更新：2026-09-26。这是当前 Windows 会话的上下文，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。GitHub 登录名现为 **zhouhanx**（原 zhouhanker，2026-09-28 改名）。仓库地址见 `docs/IDENTITY.md`。没有改写历史。提交邮箱仍是 `zhouhanker@gmail.com`。
 
 ## 这次做了什么
 
@@ -12,7 +12,7 @@ Windows 浏览器相对 macOS 补了两点，都已推到 `origin/main`。
 | 扩展重载兜底 | worker 没接住 `reload_self` 时，只把 `chrome-extension://<id>/reload.html` 交给已经在跑的用户浏览器 | `971a7b7` |
 | 复测记录 | 见下方 | `858ef22` |
 
-作者 `zhouhanker <zhouhanker@gmail.com>`。远端 `git@github.com:zhouhanker/versatile-computer-use.git`。本机 GitHub 用户名是 `zhouhanker`。仓库 Contributors API 只有 `zhouhanker`，没有改写历史。
+作者 `zhouhanx <zhouhanker@gmail.com>`。远端 `git@github.com:zhouhanx/versatile-computer-use.git`，HTTPS `https://github.com/zhouhanx/versatile-computer-use.git`。本机 GitHub 用户名是 `zhouhanx`（原 `zhouhanker`）。没有改写历史。
 
 流程细则在 `docs/WINDOWS-DEV.md`。扩展继续本地加载，不上 Chrome 网上应用店，也不上 Edge 加载项。README 不写大段边界。
 
@@ -106,7 +106,7 @@ vcu browser ping --json
 
 更新：2026-09-26。Windows Stage 把淡阴影画进预乘文字层。红底上胶囊四角仍是红底，胶囊下方 4 到 10 像素略暗，18 像素外恢复红底。不是直角黑底，也不是 macOS 系统材质，也不是完整 Windows 产品 CU。
 
-更新：2026-09-26。再查 GitHub：Contributors API 只有 zhouhanker，282 次贡献。仓库页和 graphs/contributors 没有单独的 zhouhan。仓库历史作者仍只有 zhouhanker <zhouhanker@gmail.com>。没有改写历史。旧网页图若还显示这个名字，那是缓存，不是当前作者。
+更新：2026-09-26。再查 GitHub：当时 Contributors API 只有旧登录名 zhouhanker，282 次贡献。仓库页和 graphs/contributors 没有单独的 zhouhan。仓库历史作者字符串仍是 zhouhanker <zhouhanker@gmail.com>。没有改写历史。当前登录名是 zhouhanx。旧网页图若还显示旧名字，那是缓存，不是当前作者。
 
 更新：2026-09-26。CU-WIN-SESSION-077 已在本机复测：会话先点自建时间框的秒字段，再点下箭头，路径是 time_second_down_pixel。标签变成 VCU-TIME-08:00:00。同一时刻、非法时间和一次点击跨分钟被拒绝。点击本身没有移动系统光标。不是 time_second_pixel，也不是 DTM_SETSYSTEMTIME，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
@@ -136,7 +136,7 @@ vcu browser ping --json
 
 更新：2026-09-26。CU-WIN-SESSION-067 已在本机复测：会话点自建列表视图一行 VCU-LV-B 的文字中心，路径是 lvrow_pixel。标签变成 VCU-LV-PICKED-B。已选中的行和不存在的行被拒绝。没有移动系统光标。不是 listview_select，也不是 LVM_SETITEMSTATE，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
-更新：2026-09-26。GitHub Contributors API 仍只有 zhouhanker（267）。仓库历史作者只有 zhouhanker <zhouhanker@gmail.com>。stats/contributors 这次返回空缓存。不改写历史。网页图如果还显示 zhouhan，那是 GitHub 图缓存，不是当前提交作者。
+更新：2026-09-26。当时 GitHub Contributors API 仍只有旧登录名 zhouhanker（267）。仓库历史作者字符串是 zhouhanker <zhouhanker@gmail.com>。stats/contributors 这次返回空缓存。不改写历史。当前登录名是 zhouhanx。网页图如果还显示 zhouhan，那是 GitHub 图缓存，不是当前提交作者。
 
 更新：2026-09-26。CU-WIN-SESSION-066 已在本机复测：会话点已勾选的自建列表视图 VCU-LV-B 的复选框，路径是 lvuncheck_pixel。标签变成 VCU-LV-OFF-B。未勾选的行和不存在的行被拒绝。没有移动系统光标。不是 listview_uncheck，也不是 LVM_SETITEMSTATE，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
@@ -150,7 +150,7 @@ vcu browser ping --json
 
 更新：2026-09-26。CU-WIN-SESSION-061 已在本机复测：会话点自建勾选列表 VCU-CHK-B 的复选框，路径是 check_pixel。标签变成 VCU-CHK-ON-B。已勾选的行和不存在的行被拒绝。没有移动系统光标。不是 check_set，也不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
-更新：2026-09-26。GitHub Contributors API 和 stats/contributors 目前只有 zhouhanker。仓库历史和提交搜索里没有独立的 zhouhan。不改写历史。网页图如果还显示旧名字，那是 GitHub 图缓存，不是当前提交作者。
+更新：2026-09-26。当时 GitHub Contributors API 和 stats/contributors 只有旧登录名 zhouhanker。仓库历史和提交搜索里没有独立的 zhouhan。不改写历史。当前登录名是 zhouhanx。网页图如果还显示旧名字，那是 GitHub 图缓存，不是当前提交作者。
 
 更新：2026-09-26。CU-WIN-SESSION-060 已在本机复测：没有重定向位图的自建窗口让 PrintWindow 变成空白，中心被挡住后会话截图拒绝复制屏幕。路径是 OCCLUDED。没有移动系统光标。052 的有像素窗口仍走窗口像素，不是这次拒绝。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
@@ -278,7 +278,7 @@ vcu browser ping --json
 
 更新：2026-09-26。CU-WIN-SESSION-007 已在本机复测：记忆存储 5，清除后调用，显示回到「显示为 5」。不是完整计算器产品。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 
-更新：2026-09-26。CU-WIN-SESSION-006 已在本机复测：会话计算 12+7，显示变成「显示为 19」。GitHub Contributors API 当前只列出 zhouhanker（198），没有 zhouhan；Insights 若仍显示旧名，那是图缓存，没有改历史。不是完整 Windows 产品 CU。
+更新：2026-09-26。CU-WIN-SESSION-006 已在本机复测：会话计算 12+7，显示变成「显示为 19」。当时 GitHub Contributors API 只列出旧登录名 zhouhanker（198），没有 zhouhan；当前登录名是 zhouhanx。Insights 若仍显示旧名，那是图缓存，没有改历史。不是完整 Windows 产品 CU。
 
 更新：2026-09-26。CU-WIN-SESSION-005 已在本机复测：会话滚动把自建列表从 `top=0` 滚到 `top=8`，系统光标仍是 `1187,239`。不是完整 Windows 产品 CU。详见 docs/PLAN-EPIC-WIN-SESSION.md。
 

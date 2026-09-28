@@ -1869,7 +1869,7 @@ async fn api_post(paths: &VcuPaths, path: &str, body: Value) -> Result<Value, Vc
 
 fn self_update(version: &str, base_url: Option<&str>, prefix: &str) -> Result<i32, VcuError> {
     let base = base_url
-        .unwrap_or("https://github.com/zhouhanker/versatile-computer-use/releases/latest/download");
+        .unwrap_or("https://github.com/zhouhanx/versatile-computer-use/releases/latest/download");
     let script_name = installer_script_name();
     let mut script_candidates = vec![
         PathBuf::from(prefix).join("share/vcu/scripts/install").join(script_name),

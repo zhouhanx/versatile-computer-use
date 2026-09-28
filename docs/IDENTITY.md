@@ -1,6 +1,12 @@
 # Identity
 
-Canonical GitHub account for this repository: **zhouhanker**.
+Canonical GitHub account for this repository: **zhouhanx**.
 
-GitHub Contributors API and `git log` list only **zhouhanker**. Commit search `author:zhouhan` returns 0. Do not commit as `zhouhan` or `zhouhan@users.noreply.github.com`. If the Insights page still shows `zhouhan`, that is a GitHub graph cache from before this history, not a commit in the current repository. Do not rewrite history to chase that cache.
-Rechecked 2026-09-26: `GET /repos/zhouhanker/versatile-computer-use/contributors` returned only `zhouhanker` (198). Still do not rewrite history to chase an Insights cache.
+Former login: **zhouhanker**, renamed 2026-09-28. Do not commit as `zhouhanker`, `zhouhan`, or `zhouhan@users.noreply.github.com`.
+
+Remotes:
+
+- `https://github.com/zhouhanx/versatile-computer-use.git`
+- `git@github.com:zhouhanx/versatile-computer-use.git`
+
+Commit email remains `zhouhanker@gmail.com` unless the user changes it. New commits use author name `zhouhanx`. Historical `git log` may still show `zhouhanker`. Do not rewrite history to chase an Insights cache. The 2026-09-26 contributors check was under the old login.

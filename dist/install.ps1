@@ -7,7 +7,7 @@ $Version = if ($env:VCU_VERSION) { $env:VCU_VERSION } else { 'latest' }
 $Prefix = if ($env:VCU_PREFIX) { $env:VCU_PREFIX } else { Join-Path $env:USERPROFILE '.local' }
 $BinDir = if ($env:VCU_BIN_DIR) { $env:VCU_BIN_DIR } else { Join-Path $Prefix 'bin' }
 $ShareDir = if ($env:VCU_SHARE_DIR) { $env:VCU_SHARE_DIR } else { Join-Path $Prefix 'share\vcu' }
-$BaseUrl = if ($env:VCU_BASE_URL) { $env:VCU_BASE_URL } else { 'https://github.com/zhouhanker/versatile-computer-use/releases/latest/download' }
+$BaseUrl = if ($env:VCU_BASE_URL) { $env:VCU_BASE_URL } else { 'https://github.com/zhouhanx/versatile-computer-use/releases/latest/download' }
 $Arch = if ([Environment]::Is64BitOperatingSystem) {
   if ($env:PROCESSOR_ARCHITECTURE -match 'ARM') { 'arm64' } else { 'x64' }
 } else { throw '32-bit Windows is not supported' }

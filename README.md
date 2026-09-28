@@ -2,9 +2,9 @@
 
 厂商与模型无关的本机 Computer Use 运行时。通过 CLI、本地 daemon 与 MCP，把观察与操作接到 Codex、Claude、Cursor 等宿主；宿主已具备视觉能力时无需再配置专用模型。
 
-仓库：[github.com/zhouhanker/versatile-computer-use](https://github.com/zhouhanker/versatile-computer-use)
+仓库：[github.com/zhouhanx/versatile-computer-use](https://github.com/zhouhanx/versatile-computer-use)
 
-GitHub Contributors 目前只有 zhouhanker。仓库页和贡献图没有单独的 zhouhan。没有改写历史。旧图缓存若还显示这个名字，不是当前提交作者。
+GitHub 登录名现为 zhouhanx（原 zhouhanker，2026-09-28 改名）。没有改写历史。提交邮箱仍是 zhouhanker@gmail.com。不要用 zhouhan 或 `zhouhan@users.noreply.github.com`。
 
 Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。`vcu --version` 打印的是 crate 版本，不代表浏览器桥没有更新。
 
@@ -25,13 +25,13 @@ Browser Bridge **0.2.8**。运行时软件包 **0.1.0**。`vcu --version` 打印
 macOS / Linux：
 
 ```bash
-curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/zhouhanx/versatile-computer-use/releases/latest/download/install.sh | sh
 ```
 
 Windows：
 
 ```powershell
-irm https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.ps1 | iex
+irm https://github.com/zhouhanx/versatile-computer-use/releases/latest/download/install.ps1 | iex
 ```
 
 安装说明见 [docs/INSTALL.md](docs/INSTALL.md)。Release `v0.2.8` 不包含只存在于 `main` 的后续提交。

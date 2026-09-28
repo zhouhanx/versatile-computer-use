@@ -1,6 +1,6 @@
 # Release & CI packaging
 
-Repo: https://github.com/zhouhanker/versatile-computer-use
+Repo: https://github.com/zhouhanx/versatile-computer-use
 
 ## Packages (minimum)
 
@@ -35,7 +35,7 @@ bash scripts/pack-release.sh
 
 ```bash
 gh release list                                     # 应有 v* 资产
-curl -fsI https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh
+curl -fsI https://github.com/zhouhanx/versatile-computer-use/releases/latest/download/install.sh
 vcu self update                                     # 不带 VCU_BASE_URL 应成功
 ```
 

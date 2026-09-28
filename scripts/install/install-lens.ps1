@@ -7,7 +7,7 @@
 #   powershell -File scripts/install/install-lens.ps1 -FromRelease -Open
 #
 # Without a checkout. Release zip first, then the Windows tarball already on GitHub:
-#   irm https://raw.githubusercontent.com/zhouhanker/versatile-computer-use/main/scripts/install/install-lens.ps1 | iex
+#   irm https://raw.githubusercontent.com/zhouhanx/versatile-computer-use/main/scripts/install/install-lens.ps1 | iex
 #
 # Pipe overrides: VCU_LENS_DEST, VCU_LENS_SOURCE, VCU_LENS_OPEN=1, VCU_LENS_FROM_RELEASE=1, VCU_BASE_URL
 param(
@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $BaseUrl) {
   if ($env:VCU_BASE_URL) { $BaseUrl = $env:VCU_BASE_URL }
-  else { $BaseUrl = 'https://github.com/zhouhanker/versatile-computer-use/releases/latest/download' }
+  else { $BaseUrl = 'https://github.com/zhouhanx/versatile-computer-use/releases/latest/download' }
 }
 if (-not $Dest -and $env:VCU_LENS_DEST) { $Dest = $env:VCU_LENS_DEST }
 if (-not $Source -and $env:VCU_LENS_SOURCE) { $Source = $env:VCU_LENS_SOURCE }

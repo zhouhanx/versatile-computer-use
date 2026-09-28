@@ -1,11 +1,11 @@
 # Install (no npm / no source tree required)
 
-Repository: https://github.com/zhouhanker/versatile-computer-use
+Repository: https://github.com/zhouhanx/versatile-computer-use
 
 ## macOS / Linux — curl
 
 ```bash
-curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/zhouhanx/versatile-computer-use/releases/latest/download/install.sh | sh
 ```
 
 Installs to `~/.local/bin` (`vcu`, `vcu-daemon`, `vcu-mcp`, and on macOS `vcu-stage`) and bundles the browser extension under `~/.local/share/vcu/extension`. Windows omits `vcu-stage`.
@@ -20,7 +20,7 @@ VCU_BASE_URL=file://$PWD/dist bash scripts/install/install.sh
 ## Windows — irm
 
 ```powershell
-irm https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.ps1 | iex
+irm https://github.com/zhouhanx/versatile-computer-use/releases/latest/download/install.ps1 | iex
 ```
 
 ## Release artifacts (CI)
@@ -92,7 +92,7 @@ The runtime tarball on GitHub Releases already contains `extension/`. A separate
 Windows, without cloning and without clicking the debugging consent dialog:
 
 ```powershell
-irm https://raw.githubusercontent.com/zhouhanker/versatile-computer-use/main/scripts/install/install-lens.ps1 | iex
+irm https://raw.githubusercontent.com/zhouhanx/versatile-computer-use/main/scripts/install/install-lens.ps1 | iex
 ```
 
 The script tries `vcu-lens-extension.zip` first, then falls back to `vcu-latest-windows-x64.tar.gz`. It copies the extension to `%USERPROFILE%\.vcu\lens-extension`. Then in Edge: `edge://extensions`, Developer mode, Load unpacked. Do not start CDP. A checkout can still run `powershell -File scripts/install/install-lens.ps1 -FromRelease -Open`.

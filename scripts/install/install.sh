@@ -12,7 +12,7 @@ VCU_BIN_DIR="${VCU_BIN_DIR:-$VCU_PREFIX/bin}"
 VCU_SHARE_DIR="${VCU_SHARE_DIR:-$VCU_PREFIX/share/vcu}"
 # Base URL hosting archives. Override for private mirrors or local file server.
 # Example local test: VCU_BASE_URL=file:///path/to/dist
-VCU_BASE_URL="${VCU_BASE_URL:-https://github.com/zhouhanker/versatile-computer-use/releases/latest/download}"
+VCU_BASE_URL="${VCU_BASE_URL:-https://github.com/zhouhanx/versatile-computer-use/releases/latest/download}"
 VCU_REPO_LATEST_API="${VCU_REPO_LATEST_API:-}"
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"

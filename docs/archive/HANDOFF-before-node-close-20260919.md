@@ -2,16 +2,18 @@
 
 当前请先读 [PLAN](../PLAN.md) 和 [HANDOFF](../HANDOFF.md)。以下按原样保留；包含过期的桌面/飞书/CDP路径，不得作为当前执行指令。内部旧相对链接按原docs/HANDOFF.md位置解释。
 
+GitHub 登录名现为 **zhouhanx**（原 zhouhanker，2026-09-28 改名）。下文里的旧登录名不要再用来提交。当前仓库地址见 [IDENTITY](../IDENTITY.md)：`https://github.com/zhouhanx/versatile-computer-use.git` 与 `git@github.com:zhouhanx/versatile-computer-use.git`。没有改写历史。提交邮箱仍是 `zhouhanker@gmail.com`。
+
 ---
 
 # 会话交接文档（Session Handoff）
 
 > **写入时间：** 2026-09-19 CST（Asia/Shanghai）
 > **权威计划：** [`docs/PLAN.md`](PLAN.md)（先读它，不要再堆第 N 个「当前快照」当计划）  
-> **仓库：** https://github.com/zhouhanker/versatile-computer-use  
+> **仓库：** https://github.com/zhouhanx/versatile-computer-use  
 > **本地路径：** `/Users/zhouhan/ai/versatile-computer-use`  
 > **git：** `2c28009` on `origin/main`
-> **作者：** zhouhanker
+> **作者：** zhouhanx（原 zhouhanker）
 
 ---
 
@@ -528,16 +530,16 @@ daemon：`vcu daemon start`（勿 `service install`）。Shell 前缀 `rtk`。
 
 > **写入时间：** 2026-09-18 17:50 CST（Asia/Shanghai）  
 > **原因：** 会话关闭归档（STEW-023–026 已落盘；下一会话直接续）  
-> **仓库：** https://github.com/zhouhanker/versatile-computer-use  
+> **仓库：** https://github.com/zhouhanx/versatile-computer-use  
 > **本地路径：** `/Users/zhouhan/ai/versatile-computer-use`  
-> **作者：** zhouhanker
+> **作者：** zhouhanx（原 zhouhanker）
 
 ---
 
 ## 0. 会话关闭归档（2026-09-18 17:50 CST）
 
 > **下一会话第一件事：读本节 + `.awr/intake/work-ledger.yaml`。**  
-> Shell 命令前缀 `rtk`。作者 **zhouhanker**。
+> Shell 命令前缀 `rtk`。作者 **zhouhanx**（原 zhouhanker）。
 
 ### 本回合结果
 
@@ -626,7 +628,7 @@ Feishu Scene 链：
 继续 VCU：/Users/zhouhan/ai/versatile-computer-use
 先读 docs/HANDOFF.md §0 会话关闭归档 与 .awr/intake/work-ledger.yaml。
 硬约束：禁止 Codex CU 目录；禁止微信；禁止代点 UI/CDP Allow；禁止 OS 光标；desktop 同回合 stop。
-作者 zhouhanker。daemon 应在 127.0.0.1:17890（若死：vcu daemon start，勿 service install）。
+作者 zhouhanx（原 zhouhanker）。daemon 应在 127.0.0.1:17890（若死：vcu daemon start，勿 service install）。
 STEW-001–026 已完成。自领无阻塞切片；FEISHU-001/ETH-001 等用户。
 Shell 用 rtk 前缀。
 ```
@@ -833,7 +835,7 @@ daemon pid 77556。未点 UI、未碰微信/Codex CU。
 
 ### 硬约束
 
-禁止点 UI；禁止 Codex CU；禁止微信；作者 zhouhanker。
+禁止点 UI；禁止 Codex CU；禁止微信；作者 zhouhanx（原 zhouhanker）。
 
 ### 设计转向（2026-09-18 10:40 CST → 10:55 已确认并开始实现）
 
@@ -860,7 +862,7 @@ daemon pid 77556。未点 UI、未碰微信/Codex CU。
 1. **禁止**卸载/修改 **Codex Computer Use**（`~/.codex/computer-use/`）
 2. **禁止**自动化 **微信 / WeChat**
 3. 安装方式应支持 **curl / irm**，不依赖 npm / 源码
-4. 远程仓库身份：**zhouhanker**（不是 zhouhan）
+4. 远程仓库身份：**zhouhanx**（原 zhouhanker；不是 zhouhan）
 5. 优先做完 **macOS** 全能力后再停
 
 ---
@@ -906,7 +908,7 @@ VCU_BASE_URL=file://$PWD/dist VCU_PREFIX=$HOME/.local bash scripts/install/insta
 ### 发布安装（Release 就绪后）
 
 ```bash
-curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/zhouhanx/versatile-computer-use/releases/latest/download/install.sh | sh
 ```
 
 ---
@@ -915,12 +917,12 @@ curl -fsSL https://github.com/zhouhanker/versatile-computer-use/releases/latest/
 
 | 项 | 值 |
 |----|-----|
-| remote | `https://github.com/zhouhanker/versatile-computer-use.git` |
+| remote | `https://github.com/zhouhanx/versatile-computer-use.git` |
 | branch | `main` |
 | 最近提交（交接时） | `8ec975a` 及之后可能有 `715a55d` 等；以 `git log -5` 为准 |
 | tag | `v0.1.0`（曾 force 更新作者） |
-| git user | **必须** `zhouhanker <zhouhanker@gmail.com>` |
-| Contributors | API 仅 **zhouhanker**；网页 Insights 可能缓存旧 `zhouhan` |
+| git user | **必须** `zhouhanx <zhouhanker@gmail.com>`。登录名原为 zhouhanker。不要改写历史。 |
+| Contributors | 改名前 API 仅旧登录名 **zhouhanker**；当前登录名是 **zhouhanx**。网页 Insights 可能缓存旧 `zhouhan` |
 
 **曾出的作者问题：**  
 - 误用 `user.name=zhouhan`  
@@ -1070,7 +1072,7 @@ bash scripts/poc_self_lifecycle.sh # update/uninstall，且确认 Codex CU 仍�
 | `docs/research/06-codex-computer-use-and-originone-helper.md` | 逆向笔记 |
 | `docs/testing/METHODOLOGY.md` | 测试方法 |
 | `evals/ACCEPTANCE.md` | 验收表 |
-| `docs/IDENTITY.md` | 规范作者 zhouhanker |
+| `docs/IDENTITY.md` | 规范作者 zhouhanx（原 zhouhanker） |
 
 ---
 
@@ -1079,7 +1081,7 @@ bash scripts/poc_self_lifecycle.sh # update/uninstall，且确认 Codex CU 仍�
 ```text
 继续 VCU 项目：/Users/zhouhan/ai/versatile-computer-use
 先读 docs/PLAN.md，再读 docs/HANDOFF.md。
-硬约束：禁止动 Codex Computer Use；禁止微信；禁止点 Allow；作者 zhouhanker。
+硬约束：禁止动 Codex Computer Use；禁止微信；禁止点 Allow；作者 zhouhanx（原 zhouhanker）。
 当前节点：P0 TEST-001 诚实门禁 → P2 飞书 App+视觉发 test 并截图核验。禁止用 lark-cli 当飞书验收。CDP 已抛弃。
 ```
 
