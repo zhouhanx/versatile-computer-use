@@ -2,6 +2,8 @@
 
 更新：2026-09-28。这是当前 macOS 会话的关闭记录，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。GitHub 登录名是 **zhouhanx**（原 zhouhanker）。仓库地址见 `docs/IDENTITY.md`。没有改写历史。提交邮箱仍是 `zhouhanker@gmail.com`。
 
+接入说明已写成 `README.md` 与 `docs/AGENT.md`。给要操作电脑的 AI 读后者。这不是新切片，也不是新的 GitHub Release。用户要求发上去，因此 `4498331`、`dc7b747` 与这篇文档一并推到 `origin/main`。下面「未推送」是关闭当时的状态。
+
 ## 这次做了什么
 
 把 Windows 已推送的 `main` 同步到这台 Mac，改仓库身份，并确认用户 Edge 已加载同一份扩展。没有改产品代码，没有改写历史，没有推送。
@@ -39,9 +41,9 @@ Codex 报的是一条告警，里面有 3 个被忽略的键，不是两个独�
 
 ## 下一次接着做时
 
-先读 `docs/PLAN.md`，再读 `docs/WINDOWS-DEV.md`，再读本文。不要把下面的 Windows 快照当成当前现场，也不要当成排期。
+先读 `docs/PLAN.md`，再读 `docs/AGENT.md`，再读 `docs/WINDOWS-DEV.md`，再读本文。不要把下面的 Windows 快照当成当前现场，也不要当成排期。
 
-本机 `main` 比 `origin/main` 超前。身份提交是 `4498331`，这次交接在它之后。没有用户要求不要 `git push`。不要 claim `MAC-NEXT` 或 `FEISHU-001`。Shell 命令前缀用 `rtk`。
+身份提交 `4498331` 与交接 `dc7b747` 已随接入文档推送。没有新的要求就不要再 `git push`。不要 claim `MAC-NEXT` 或 `FEISHU-001`。Shell 命令前缀用 `rtk`。
 
 Windows 机器下次仍按 `docs/WINDOWS-DEV.md`。那边的 daemon 和扩展目录与这台 Mac 不是同一份。
 

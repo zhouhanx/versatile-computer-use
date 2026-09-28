@@ -36,14 +36,28 @@ Built by `.github/workflows/ci.yml` (artifacts) and `.github/workflows/release.y
 
 ## After install
 
+二进制装好之后还要接扩展和宿主。两边的目录、Codex TOML 和给 AI 的顺序见 [AGENT.md](AGENT.md)。不要把包内 `share/vcu/extension` 和 `lens-extension` 同时加载。
+
+macOS：
+
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
-vcu init
-vcu daemon start --foreground
-# macOS login service:
+vcu daemon start
+vcu browser install-lens
+vcu mcp print-config --json
+# 可选登录自启。Windows 没有这条。
 vcu service install
+```
+
+Windows：把 `%USERPROFILE%\.local\bin` 加进用户 PATH，然后：
+
+```powershell
+vcu daemon start
+vcu browser install-lens
 vcu mcp print-config --json
 ```
+
+然后在用户 Edge 或 Chrome 里加载解压缩扩展：macOS `~/.vcu/lens-extension`，Windows `%USERPROFILE%\.vcu\lens-extension`。不要点「允许调试」。
 
 ## Verify
 

@@ -1,5 +1,7 @@
 # Agent 与 VCU 如何通讯
 
+现行接入以 [../AGENT.md](../AGENT.md) 为准。下面是设计稿，不要拿它代替 Windows / macOS 的安装路径，也不要按这里去开 CDP 或空 Agent 配置。
+
 ## 结论
 
 **推荐、一等公民协议是 MCP（Model Context Protocol）**，由 `vcu-mcp` 提供。

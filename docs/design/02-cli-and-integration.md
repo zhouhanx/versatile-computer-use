@@ -1,5 +1,7 @@
 # CLI · MCP · Skill 接入设计
 
+现行 Windows / macOS 接入以 [../AGENT.md](../AGENT.md) 为准。本文是早期命令草图，不要按它去开 mock 会话或 CDP。
+
 版本：0.1-design
 
 ## 1. 设计目标

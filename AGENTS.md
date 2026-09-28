@@ -28,6 +28,7 @@ Authoritative sources (in order):
 - `.awr/intake/GOALS.md`
 - `.awr/intake/work-ledger.yaml`
 - `docs/HANDOFF.md` — session continuity (do not treat stacked snapshots as the plan)
+- `docs/AGENT.md` — how a host AI connects on Windows and macOS. Not the work plan.
 - `docs/testing/BROWSER_TEST_PLAN.md` / `BROWSER_TEST_CASES.md`
 
 ## Working rules

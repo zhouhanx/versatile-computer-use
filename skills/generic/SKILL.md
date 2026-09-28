@@ -5,7 +5,9 @@ description: USER Chrome/Edge computer use with named native tab groups, DOM act
 
 # VCU browser skill
 
-Use VCU CLI or MCP on the user's logged-in Chrome/Edge through VCU Browser Bridge. This version is browser-only. Host vision is sufficient; do not require model configuration when the host can see images.
+Use VCU CLI or MCP on the user's logged-in Chrome/Edge through VCU Browser Bridge. Host vision is sufficient; do not require model configuration when the host can see images.
+
+OS connect steps, Codex TOML, and stop conditions: `docs/AGENT.md` in the repo, or https://github.com/zhouhanx/versatile-computer-use/blob/main/docs/AGENT.md. Load only `~/.vcu/lens-extension` (Windows: `%USERPROFILE%\.vcu\lens-extension`). Do not start a desktop session unless the user names one. Desktop is not the shipped connect path.
 
 ## Workflow
 
