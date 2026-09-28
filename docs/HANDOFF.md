@@ -1,54 +1,51 @@
 # 会话交接
 
-更新：2026-09-28。这是当前 macOS 会话的关闭记录，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。GitHub 登录名是 **zhouhanx**（原 zhouhanker）。仓库地址和提交邮箱见 `docs/IDENTITY.md`，不要写进 `README.md`。没有改写历史。
+更新：2026-09-28。这是 README 与安装文档整理会话的关闭记录，不是排期。产品计划仍以 `docs/PLAN.md` 为准，后续桌面工作仍以 `docs/ROADMAP-CU.md` 为准。
 
 ## 这次做了什么
 
-只改文档，并按用户要求推到 `origin/main`。没有改产品代码，没有新的 GitHub Release，没有 claim 停放项。
+本次只修改文档。产品代码、浏览器扩展和发布资产均未改动。
 
-| 点 | 做法 | 提交 |
-| --- | --- | --- |
-| 接入 | `README.md` 写成 Windows / macOS 两条路：二进制、`lens-extension`、daemon、MCP。不要两份扩展同时加载 | `3d4e9b1`，已推送 |
-| 给 AI | 新增 `docs/AGENT.md`。操作顺序、Codex TOML、失败时怎么停。不是排期 | `3d4e9b1`，已推送 |
-| README 身份 | 删掉仓库地址段，以及登录名、改名、提交邮箱。安装命令里的下载地址还留着 | `71e8b1d`，已推送 |
-| 旧技能 | `skills/codex`、`claude`、`cursor`、`pi` 不再教 mock / CDP，改指向 `docs/AGENT.md` | `3d4e9b1`，已推送 |
-| 顺带推送 | 上一轮留在本机的 `4498331`、`dc7b747` 随 `3d4e9b1` 一起上去 | 已在远端 |
+| 内容 | 结果 |
+| --- | --- |
+| README | 重写为产品说明，聚焦 VCU 解决的问题、运行结构、浏览器能力、安装、MCP 接入和使用边界 |
+| AI 安装 | 新增 `docs/AI-INSTALL.md`，给出平台识别、二进制或源码安装、daemon、扩展、MCP 和最终验收步骤 |
+| 安装口径 | 明确预编译 Release 是 macOS arm64 / x64 与 Windows x64；Linux 没有预编译包，只提供需自行验证的源码路径 |
+| 文档导航 | `docs/README.md` 和 `docs/AGENT.md` 已指向新的 AI 安装指南 |
+| 安装参考 | `docs/INSTALL.md` 移除本机验证记录和硬编码版本现场，修正 Linux Release 描述 |
 
-作者 `zhouhanx <zhouhanker@gmail.com>`。本仓库 `user.name` 是 `zhouhanx`，`user.email` 是 `zhouhanker@gmail.com`。
+上述内容提交为 `058f519`（`docs: simplify readme and add AI install guide`），已经推送到 `origin/main`。推送时一并包含此前未推送的交接提交 `5e2bf5a`。
 
-已推送的远端是 `71e8b1d`。这次交接在它之后，还没推。不要把 `71e8b1d`、`3d4e9b1`、`4498331`、`dc7b747`、`2c0060e` 或 `e5d47df` 当成当前 HEAD。
+## 产品定位与安装口径
 
-## 接入时记住
+- VCU 是厂商与模型无关的本机 Computer Use 运行时，通过 CLI、daemon 和 MCP 把 AI 宿主连接到用户已登录的 Chrome / Edge。
+- 已发布主路径是解压缩浏览器扩展。网页细操作必须诚实返回 `source=extension_dom`；AX / UIA 浏览器外壳不是 HTML DOM。
+- 宿主能查看截图时，不需要配置额外视觉模型。
+- 安装完成以可执行文件、daemon、`pong=true`、`extension_profile=user` 和 MCP 绝对路径同时成立为准。
+- 扩展只加载 `~/.vcu/lens-extension`（Windows 为 `%USERPROFILE%\.vcu\lens-extension`）。不要同时加载包内副本，不开启远程调试，不点击「允许调试」。
+- 桌面 Computer Use 仍是受限能力，不是浏览器主路径的替代品。
 
-- 已发布接入是浏览器桥。桌面不是默认接入，也不是完整 Codex CU，更不是完整 Windows 产品 CU。
-- macOS 二进制在 `~/.local/bin`，含 `vcu-stage`。可 `vcu service install`。
-- Windows 二进制在 `%USERPROFILE%\.local\bin`，没有 `vcu-stage`，没有 service。安装脚本不改 PATH。`vcu daemon stop` 停不掉 `vcu-daemon.exe`。
-- 浏览器只加载 `lens-extension`。不要点「允许调试」。扩展不上商店。
-- Codex 用 `[mcp_servers.vcu]`。Windows 的命令要写 `vcu-mcp.exe`。不要改 `computer-use`，不要改 `~/.codex/computer-use/`。
-- 已安装的 0.2.8 里，`vcu install-skill` 仍是发布时编进去的技能。操作说明以 `docs/AGENT.md` 为准。
-- `README.md` 不要再写登录名、旧登录名、提交邮箱，也不要写单独的仓库地址段。
+## 验证与现场
 
-## 本机现场
-
-关闭前没有再跑 `vcu browser ping`。上一轮关闭时 Edge 已加载 `~/.vcu/lens-extension`，清单 `0.2.8`，与仓库 `extension/` 一致。那次记录在下面的快照里，不要当成这次又测过。
-
-工作区在写这份交接之前是干净的。`main` 与当时的 `origin/main` 同为 `71e8b1d`。AWR 仍是 65 项已完成，0 项进行中。可领取仍只有停放的 `MAC-NEXT` 与 `FEISHU-001`。没有 claim。
+- `git diff --check` 通过。
+- README、AI 安装指南、文档索引和接入文档中的相对 Markdown 链接检查通过。
+- 修改文件没有尾随空格。
+- 没有运行代码测试，因为本次只有 Markdown 文档改动。
+- 写入本交接前，`main` 与 `origin/main` 同为 `058f519`，工作区干净。
+- 本会话没有重新检查正在运行的 daemon、浏览器扩展或登录态；不要把旧快照当作本次复测结果。
 
 ## 下一次接着做时
 
-先读 `docs/PLAN.md`，再读 `docs/AGENT.md`，再读 `docs/WINDOWS-DEV.md`，再读本文。不要把下面的快照当成当前现场，也不要当成排期。
+先读 `docs/PLAN.md`。安装或接入任务再读 `README.md`、`docs/AI-INSTALL.md` 和 `docs/AGENT.md`；Windows 开发再读 `docs/WINDOWS-DEV.md`。本文后面的历史快照只用于追溯，不是当前计划。
 
-默认不新开切片。用户点名之前，不要 claim `MAC-NEXT` 或 `FEISHU-001`。没有新的要求不要 `git push`。Shell 命令前缀用 `rtk`。
-
-Windows 机器下次仍按 `docs/WINDOWS-DEV.md`。那边的 daemon 和扩展目录与这台 Mac 不是同一份。
+README 保持简洁，不写版本流水、提交身份、本机环境或工作台账。AI 安装步骤以 `docs/AI-INSTALL.md` 为入口；安装完成后的操作约束以 `docs/AGENT.md` 为入口。
 
 ## 明确没做
 
-- 没有新的 GitHub Release，没有上架扩展。
-- 没有改产品代码，没有改 `~/.codex/computer-use/`。
-- 没有点「允许调试」，没有移动系统光标，没有自动化微信。
-- 没有 claim `MAC-NEXT` 或 `FEISHU-001`。
-- 这次交接还没推送。
+- 没有改产品代码、扩展源码或发布工作流。
+- 没有创建新的 GitHub Release，也没有上架浏览器扩展。
+- 没有操作用户浏览器、系统光标或 `~/.codex/computer-use/`。
+- 没有把桌面能力描述成完整产品能力。
 
 ## 2026-09-28 上一轮 macOS 快照
 
