@@ -2,6 +2,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
+| [AI-INSTALL.md](AI-INSTALL.md) | 给 AI：安装、验证并接入 MCP 宿主 |
 | [AGENT.md](AGENT.md) | 给接入方 AI：Windows / macOS 怎么接、怎么停 |
 | [PLAN.md](PLAN.md) | 当前版本计划 |
 | [WINDOWS-DEV.md](WINDOWS-DEV.md) | Windows 开发、Edge 测试与扩展更新 |

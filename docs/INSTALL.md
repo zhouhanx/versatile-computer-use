@@ -2,13 +2,15 @@
 
 Repository: https://github.com/zhouhanx/versatile-computer-use
 
-## macOS / Linux — curl
+## macOS — curl
 
 ```bash
 curl -fsSL https://github.com/zhouhanx/versatile-computer-use/releases/latest/download/install.sh | sh
 ```
 
 Installs to `~/.local/bin` (`vcu`, `vcu-daemon`, `vcu-mcp`, and on macOS `vcu-stage`) and bundles the browser extension under `~/.local/share/vcu/extension`. Windows omits `vcu-stage`.
+
+GitHub Release 暂不提供 Linux 预编译包。Linux 源码安装见 [AI-INSTALL.md](AI-INSTALL.md)。
 
 ### Local mirror (dev)
 
@@ -74,7 +76,7 @@ vcu self update
 vcu self update --version 0.1.0
 ```
 
-`vcu self update` 走 `releases/latest/download/install.sh`（`VCU_BASE_URL` 可覆盖）。仓库已发布 `v0.2.8`（Latest），直接跑即可。若换成没有资产的镜像会失败，此时错误里会带上 base URL、installer 的 stderr 摘要与下面的本地通路提示。
+`vcu self update` 走 `releases/latest/download/install.sh`（`VCU_BASE_URL` 可覆盖）。若镜像没有对应资产会失败，此时错误里会带上 base URL、installer 的 stderr 摘要与下面的本地通路提示。
 
 ### Local mirror（无 Release 时）
 
@@ -85,7 +87,7 @@ VCU_BASE_URL=file://$PWD/dist vcu self update      # 等价于 curl|sh 的本地
 
 更新后重启 daemon 才会用上新二进制：`vcu daemon stop && vcu daemon start`。
 
-注意 `vcu --version` 打印的是 crate 版本（当前 `0.1.0`），浏览器桥版本另算（当前 `0.2.8`），所以版本号不变不代表没更新。
+`vcu --version` 与浏览器扩展的版本独立。扩展版本和连接状态以 `vcu browser ping --json` 为准。
 
 ## Uninstall
 
@@ -101,7 +103,7 @@ vcu self uninstall --yes --purge-config
 
 ## Browser extension
 
-The runtime tarball on GitHub Releases already contains `extension/`. A separate `vcu-lens-extension.zip` is attached to Latest Release `v0.2.8` by `.github/workflows/lens-asset.yml`. That does not publish a new product version. On 2026-09-26 this machine downloaded it and installed to a temp folder: `LENS_FROM zip`, with `manifest.json`, `content.js`, and icons, and without the test directory. If that asset is missing later, Windows install still falls back to `extension/` inside `vcu-latest-windows-x64.tar.gz`.
+The runtime tarball on GitHub Releases already contains `extension/`. A separate `vcu-lens-extension.zip` is attached to the Latest Release by `.github/workflows/lens-asset.yml`. If that asset is unavailable, Windows installation falls back to `extension/` inside `vcu-latest-windows-x64.tar.gz`.
 
 Windows, without cloning and without clicking the debugging consent dialog:
 
