@@ -1,6 +1,6 @@
 # VCU 当前计划（浏览器版）
 
-更新：2026-09-28。Windows 开发与扩展更新见 [WINDOWS-DEV.md](WINDOWS-DEV.md)。扩展继续本地加载，不上商店。本文优先于 HANDOFF 历史快照；作者 zhouhanx（GitHub 登录名，原 zhouhanker）。身份提交 `4498331` 与交接 `dc7b747` 已随接入文档推到 `origin/main`。不要把这两个哈希、`2c0060e` 或旧哈希 `e5d47df` 当成当前 HEAD。接入说明见 [AGENT.md](AGENT.md)。Windows 产品会话证据到 CU-WIN-SESSION-091。Windows Stage 的直角黑底已从 Acrylic accent 改成圆角区域模糊，淡阴影画在预乘文字层。CU-D-610 本机复测通过：旧截图 stale_viewport，重新 observe 后 dry-run 通过。
+更新：2026-09-28。Windows 开发与扩展更新见 [WINDOWS-DEV.md](WINDOWS-DEV.md)。扩展继续本地加载，不上商店。本文优先于 HANDOFF 历史快照；作者 zhouhanx（GitHub 登录名，原 zhouhanker）。已推送的远端是 `71e8b1d`（接入文档 `3d4e9b1`，README 去掉身份段）。关闭交接在它之后，未推送。不要把 `71e8b1d`、`3d4e9b1`、`4498331`、`dc7b747`、`2c0060e` 或旧哈希 `e5d47df` 当成当前 HEAD。接入说明见 [AGENT.md](AGENT.md)。`README.md` 不写登录名和提交邮箱。Windows 产品会话证据到 CU-WIN-SESSION-091。Windows Stage 的直角黑底已从 Acrylic accent 改成圆角区域模糊，淡阴影画在预乘文字层。CU-D-610 本机复测通过：旧截图 stale_viewport，重新 observe 后 dry-run 通过。
 
 ## 当前节点
 

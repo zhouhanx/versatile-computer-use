@@ -1,10 +1,60 @@
 # 会话交接
 
-更新：2026-09-28。这是当前 macOS 会话的关闭记录，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。GitHub 登录名是 **zhouhanx**（原 zhouhanker）。仓库地址见 `docs/IDENTITY.md`。没有改写历史。提交邮箱仍是 `zhouhanker@gmail.com`。
-
-接入说明已写成 `README.md` 与 `docs/AGENT.md`。给要操作电脑的 AI 读后者。这不是新切片，也不是新的 GitHub Release。用户要求发上去，因此 `4498331`、`dc7b747` 与这篇文档一并推到 `origin/main`。下面「未推送」是关闭当时的状态。
+更新：2026-09-28。这是当前 macOS 会话的关闭记录，不是排期。排期仍以 `docs/PLAN.md` 为准。已发布的浏览器桥仍是 **0.2.8**。不要把下面写成新的 GitHub Release，也不要 claim `MAC-NEXT` 或 `FEISHU-001`。GitHub 登录名是 **zhouhanx**（原 zhouhanker）。仓库地址和提交邮箱见 `docs/IDENTITY.md`，不要写进 `README.md`。没有改写历史。
 
 ## 这次做了什么
+
+只改文档，并按用户要求推到 `origin/main`。没有改产品代码，没有新的 GitHub Release，没有 claim 停放项。
+
+| 点 | 做法 | 提交 |
+| --- | --- | --- |
+| 接入 | `README.md` 写成 Windows / macOS 两条路：二进制、`lens-extension`、daemon、MCP。不要两份扩展同时加载 | `3d4e9b1`，已推送 |
+| 给 AI | 新增 `docs/AGENT.md`。操作顺序、Codex TOML、失败时怎么停。不是排期 | `3d4e9b1`，已推送 |
+| README 身份 | 删掉仓库地址段，以及登录名、改名、提交邮箱。安装命令里的下载地址还留着 | `71e8b1d`，已推送 |
+| 旧技能 | `skills/codex`、`claude`、`cursor`、`pi` 不再教 mock / CDP，改指向 `docs/AGENT.md` | `3d4e9b1`，已推送 |
+| 顺带推送 | 上一轮留在本机的 `4498331`、`dc7b747` 随 `3d4e9b1` 一起上去 | 已在远端 |
+
+作者 `zhouhanx <zhouhanker@gmail.com>`。本仓库 `user.name` 是 `zhouhanx`，`user.email` 是 `zhouhanker@gmail.com`。
+
+已推送的远端是 `71e8b1d`。这次交接在它之后，还没推。不要把 `71e8b1d`、`3d4e9b1`、`4498331`、`dc7b747`、`2c0060e` 或 `e5d47df` 当成当前 HEAD。
+
+## 接入时记住
+
+- 已发布接入是浏览器桥。桌面不是默认接入，也不是完整 Codex CU，更不是完整 Windows 产品 CU。
+- macOS 二进制在 `~/.local/bin`，含 `vcu-stage`。可 `vcu service install`。
+- Windows 二进制在 `%USERPROFILE%\.local\bin`，没有 `vcu-stage`，没有 service。安装脚本不改 PATH。`vcu daemon stop` 停不掉 `vcu-daemon.exe`。
+- 浏览器只加载 `lens-extension`。不要点「允许调试」。扩展不上商店。
+- Codex 用 `[mcp_servers.vcu]`。Windows 的命令要写 `vcu-mcp.exe`。不要改 `computer-use`，不要改 `~/.codex/computer-use/`。
+- 已安装的 0.2.8 里，`vcu install-skill` 仍是发布时编进去的技能。操作说明以 `docs/AGENT.md` 为准。
+- `README.md` 不要再写登录名、旧登录名、提交邮箱，也不要写单独的仓库地址段。
+
+## 本机现场
+
+关闭前没有再跑 `vcu browser ping`。上一轮关闭时 Edge 已加载 `~/.vcu/lens-extension`，清单 `0.2.8`，与仓库 `extension/` 一致。那次记录在下面的快照里，不要当成这次又测过。
+
+工作区在写这份交接之前是干净的。`main` 与当时的 `origin/main` 同为 `71e8b1d`。AWR 仍是 65 项已完成，0 项进行中。可领取仍只有停放的 `MAC-NEXT` 与 `FEISHU-001`。没有 claim。
+
+## 下一次接着做时
+
+先读 `docs/PLAN.md`，再读 `docs/AGENT.md`，再读 `docs/WINDOWS-DEV.md`，再读本文。不要把下面的快照当成当前现场，也不要当成排期。
+
+默认不新开切片。用户点名之前，不要 claim `MAC-NEXT` 或 `FEISHU-001`。没有新的要求不要 `git push`。Shell 命令前缀用 `rtk`。
+
+Windows 机器下次仍按 `docs/WINDOWS-DEV.md`。那边的 daemon 和扩展目录与这台 Mac 不是同一份。
+
+## 明确没做
+
+- 没有新的 GitHub Release，没有上架扩展。
+- 没有改产品代码，没有改 `~/.codex/computer-use/`。
+- 没有点「允许调试」，没有移动系统光标，没有自动化微信。
+- 没有 claim `MAC-NEXT` 或 `FEISHU-001`。
+- 这次交接还没推送。
+
+## 2026-09-28 上一轮 macOS 快照
+
+下面是身份改名和扩展核对那次的关闭记录，不是当前现场，也不是排期。当时写的「未推送」已过时：`4498331` 与 `dc7b747` 已在 `origin/main`。
+
+## 那次做了什么
 
 把 Windows 已推送的 `main` 同步到这台 Mac，改仓库身份，并确认用户 Edge 已加载同一份扩展。没有改产品代码，没有改写历史，没有推送。
 
@@ -39,7 +89,7 @@ Codex 报的是一条告警，里面有 3 个被忽略的键，不是两个独�
 
 两个服务的 `command` 都还在，传输仍由 `command` 决定。`computer-use` 仍是 `enabled = false`，没有启用。没有改 `~/.codex/computer-use/`。现行配置参考没有这三个键，也没有把 `disable_response_storage` 换成 `history.persistence`；后者只控制本地会话记录。新开一个 Codex 会话后，这条告警才会消失。
 
-## 下一次接着做时
+## 那次留下的下次说明
 
 先读 `docs/PLAN.md`，再读 `docs/AGENT.md`，再读 `docs/WINDOWS-DEV.md`，再读本文。不要把下面的 Windows 快照当成当前现场，也不要当成排期。
 
