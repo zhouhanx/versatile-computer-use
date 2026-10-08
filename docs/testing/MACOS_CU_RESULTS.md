@@ -33,21 +33,21 @@
 
 ## MAC-002
 
-更新：2026-10-08 21:44 +0800。干净 SHA `ee7dd8a53713285aac8010669ae37e2b05bbdf81` 复跑 `python3 scripts/poc_mac_002_scene.py`，`.local/desktop-cu/mac-MAC-002.json` 为 `ok=true`，`dirty=false`。文档提交后的复跑 JSON 才是最终完成绑定；如果那次不是 `ok=true`，不能把本文件当成完成。
+更新：2026-10-08 21:50 +0800。最终绑定是干净 SHA `a350741e2c875bf70ef0574ee30912d0b7e2e32a` 的 `.local/desktop-cu/mac-MAC-002.json`，`ok=true`，`dirty=false`。代码提交 `ee7dd8a` 也曾干净复跑通过；随后的 Finder 瞬时空窗和夹具退出已分别在 `b7e0a25`、`a350741` 修好并复跑。
 
 默认预算由这次夹具、TextEdit 和单文件 Finder 窗口实测确定，并写在 Scene 摘要里：`max_nodes=80`，`max_depth=6`（显式 expand 默认深度 24），`timeout_ms=4500`，`max_output_bytes=24000`。输出预算下限是 256。文本区、文本框、密码框和标尺默认不向下展开，原因是 `content_not_expanded`，不是完整树。脚本用 `NSDate` 在超时前返回已收集节点和 `TRUNC|time_budget`；外部 kill 只是 900ms 宽限后的兜底。
 
 | 验收 | 结果 | 证据 |
 | --- | --- | --- |
 | 同 App 双窗口按 CGWindowID 选择，不回退 `window 1` | pass | 夹具两窗 `ambiguous_window`；指定 id 后左右标记不串窗 |
-| 深度 16 按 `0/0/...` 展开到达 `depth-target` | pass | 干净复跑 `deep_expand` 1.332s，`timeout_ms=8000` |
-| 同级 40 个子元素展开到达 `sib-39` | pass | 干净复跑 `sibling_expand` 3.045s，41 个节点 |
+| 深度 16 按 `0/0/...` 展开到达 `depth-target` | pass | `a350741` `deep_expand` 1.351s，`timeout_ms=8000` |
+| 同级 40 个子元素展开到达 `sib-39` | pass | `a350741` `sibling_expand` 3.049s，41 个节点 |
 | 节点、深度、输出、时间预算原因明确 | pass | `node_budget` 1 个元素；`depth_budget` 5 个元素；请求 256 字节得到 `output_budget`；`timeout_ms=1` 为 `time_budget`，health 仍 200 |
-| 超时前返回已收集节点，不把空超时当成功 | pass | 干净复跑 TextEdit `timeout_ms=1000` 1.250s，9 个元素，`time_budget` |
+| 超时前返回已收集节点，不把空超时当成功 | pass | `a350741` TextEdit `timeout_ms=1000` 1.273s，9 个元素，`time_budget` |
 | 密码值不进入 Scene | pass | 响应不含 `vcu-secret-should-not-leak` |
 | `nN` 引用拒绝 live mutation | pass | invoke `n1` HTTP 400，observation-only |
-| TextEdit 默认预算有窗口和元素 | pass | 干净复跑 4.012s，29 个元素，`content_not_expanded`，`window_id` 已绑定 |
-| Finder 临时窗口有窗口和元素，删除前关闭 | pass | 干净复跑 4.665s，49 个元素，`time_budget`；`finder_cleanup` pass |
+| TextEdit 默认预算有窗口和元素 | pass | `a350741` 4.011s，29 个元素，`content_not_expanded`，窗口已绑定 |
+| Finder 临时窗口有窗口和元素，删除前关闭 | pass | `a350741` 4.708s，51 个元素，`time_budget`；`finder_cleanup` pass |
 | mock/Windows/MCP 可选字段 | pass | `vcu-server` lib 108；`vcu-mcp` mcp_stdio 1；`vcu-cli` 4 |
 
 窗口身份仍用本进程 `CGWindowListCopyWindowInfo` 的 `kCGWindowNumber`，再按标题和几何匹配。System Events 的 `id of window` 不能转成文本，也不回退 `window 1`。新 Scene 仍是 observation-only。
@@ -61,6 +61,6 @@
 
 ### 不宣称
 
-- 不宣称 Finder 在 4500ms 内走完默认深度。干净复跑在 49 个元素处按 `time_budget` 返回，窗口 id 已绑定。
+- 不宣称 Finder 在 4500ms 内走完默认深度。`a350741` 在 51 个元素处按 `time_budget` 返回，窗口 id 已绑定。
 - 不宣称文本内容、标尺标记或密码控件子树已展开。这些角色记为 `content_not_expanded`。
-- `ee7dd8a` 是代码提交上的干净复跑。文档提交后的 JSON 若不是 `ok=true`，不能完成。没有领取 `MAC-003` 或 `BR-001`。没有结束会话 `01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+- 没有领取 `MAC-003` 或 `BR-001`。没有结束会话 `01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。

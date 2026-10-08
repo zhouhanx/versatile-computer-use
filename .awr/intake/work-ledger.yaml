@@ -1243,7 +1243,7 @@ work_items:
       - "同 App 双窗口可明确选择；深度超过 14、同级超过 32 子元素的夹具目标可按需展开到达"
       - "节点/深度/超时/输出预算截断原因明确，密码值不进入 Scene 或日志，异常节点不阻塞 daemon"
       - "默认预算和耗时有夹具及 TextEdit/Finder 测量，Scene 可选字段兼容现有 mock/Windows/MCP"
-    next_action: ee7dd8a 干净复跑 ok=true。文档提交后再复跑，ok=true 才能 complete。不要领 MAC-003。会话 01M4DJ9FZJA5A39ZS0CBB5V8GA
+    next_action: a350741 干净复跑 ok=true。用该 SHA 的完成报告登记，不要领 MAC-003。会话 01M4DJ9FZJA5A39ZS0CBB5V8GA
     evidence:
       - "docs/testing/MACOS_CU_RESULTS.md"
       - ".local/desktop-cu/mac-MAC-002.json"

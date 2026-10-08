@@ -46,7 +46,7 @@
 - 验收：缺权限分支有确定性测试并给出正确 repair hint；有权限时能观察脚本自建 TextEdit 窗；超时有边界且无残留子进程，不对已退出/复用的 pid 延迟发送终止信号；HUD 未就绪不得动作；基线报告逐项标明 pass/fail/未测。真机权限不足时保留阻塞原因，不修改 TCC，不把整项写成完成。
 - 下一步：`00d2be7` 干净预检 `ok=true`。PATH 二进制保持 warn。文档提交后的复跑若失败，撤回完成声明，不推进深 AX。
 
-### MAC-002：有预算的深 AX Scene（P0，planned）
+### MAC-002：有预算的深 AX Scene（P0，证据 `a350741`）
 
 - 前置：MAC-001。
 - 落点：`app/macos.rs` 的读取/遍历/解析；`app/mod.rs` Scene 类型；拟新增 `scripts/poc_mac_002_scene.py` 和受控原生 AX 测试夹具。

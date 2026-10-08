@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "work_item": "MAC-002",
+  "source_sha": "a350741e2c875bf70ef0574ee30912d0b7e2e32a",
+  "command": "python3 scripts/poc_mac_002_scene.py",
+  "scope": [
+    "MAC-002"
+  ],
+  "verified_at": 1791467416000,
+  "checks": [
+    {
+      "name": "window selection and deep expand",
+      "passed": true,
+      "details": "Clean a350741 selected both fixture windows by CGWindowID. deep_expand reached depth-target in 1.351s. sibling_expand reached sib-39 with 41 nodes in 3.049s. No window 1 fallback.",
+      "criteria": [
+        "同 App 双窗口可明确选择；深度超过 14、同级超过 32 子元素的夹具目标可按需展开到达"
+      ]
+    },
+    {
+      "name": "budget reasons redaction and daemon",
+      "passed": true,
+      "details": "node_budget, depth_budget, output_budget and time_budget were distinct. timeout_ms=1 kept health 200. TextEdit timeout_ms=1000 returned 9 elements with time_budget. Password value was absent. n1 invoke returned HTTP 400 observation-only.",
+      "criteria": [
+        "节点/深度/超时/输出预算截断原因明确，密码值不进入 Scene 或日志，异常节点不阻塞 daemon"
+      ]
+    },
+    {
+      "name": "measured defaults and optional fields",
+      "passed": true,
+      "details": "Defaults are 80 nodes, depth 6, 4500ms and 24000 output bytes. TextEdit returned 29 elements in 4.011s with content_not_expanded. Finder returned 51 elements in 4.708s with time_budget and the temp window was closed before delete. vcu-server lib 108, vcu-mcp and vcu-cli tests passed.",
+      "criteria": [
+        "默认预算和耗时有夹具及 TextEdit/Finder 测量，Scene 可选字段兼容现有 mock/Windows/MCP"
+      ]
+    }
+  ]
+}
