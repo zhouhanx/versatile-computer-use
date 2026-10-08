@@ -1213,19 +1213,21 @@ work_items:
 
   - id: MAC-001
     title: macOS 权限、构建与基线诊断
-    status: ready
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-macos-desktop
     required: true
     priority: P0
-    summary: PLAN-MACOS 第 4 节首项。定向测试和脏工作树预检已通过功能项；干净树复跑前不能标完成。PATH 二进制不是这棵工作树。
+    summary: 干净 SHA 00d2be7 预检 ok=true。权限分类、超时回收、HUD 门禁和自建 TextEdit 观察通过。PATH 二进制不是该树，保持 warn，未覆盖。
     acceptance:
       - "报告记录 OS/架构、source SHA 或工作树差异、二进制/daemon 路径及权限诊断"
       - "缺权限/超时/截图失败分类测试通过；不会延迟 kill 已退出或复用 pid；HUD 未就绪拒绝动作"
       - "授权环境下自建 TextEdit 窗观察通过；现有 POC 基线逐项记 pass/fail/未测，权限阻塞不算完成"
-    next_action: 提交后在干净工作树复跑 scripts/poc_mac_001_preflight.py。ok 不为 true 前不标完成，不领取 MAC-002
-    evidence: []
+    next_action: 文档提交后复跑预检；ok=true 才登记 AWR 完成并领取 MAC-002
+    evidence:
+      - "docs/testing/MACOS_CU_RESULTS.md"
+      - ".local/desktop-cu/mac-MAC-001.json"
     depends_on: []
 
   - id: MAC-002

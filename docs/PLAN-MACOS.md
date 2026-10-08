@@ -44,7 +44,7 @@
 - 落点：`doctor.rs`、`app/macos.rs`、现有 macOS POC；`scripts/poc_mac_001_preflight.py`。
 - 工作：记录 OS/架构、构建 SHA、实际二进制及 daemon 路径、权限诊断、当前窗口观察结果。区分 Accessibility、Screen Recording 及现有 Apple Events 路径涉及的 Automation 问题，核对实际 daemon/helper 身份。检查列窗/截帧起始查询的超时、延时 kill 线程的进程复用风险，以及 helper 活着但 HUD 未就绪的情况。复用 TextEdit/Notes/Finder POC，不重做已证明的功能。
 - 验收：缺权限分支有确定性测试并给出正确 repair hint；有权限时能观察脚本自建 TextEdit 窗；超时有边界且无残留子进程，不对已退出/复用的 pid 延迟发送终止信号；HUD 未就绪不得动作；基线报告逐项标明 pass/fail/未测。真机权限不足时保留阻塞原因，不修改 TCC，不把整项写成完成。
-- 下一步：提交后在干净工作树复跑预检。`ok` 不为 true、或 PATH 二进制被写成这棵工作树的验收，都不得完成本项，也不得推进深 AX。
+- 下一步：`00d2be7` 干净预检 `ok=true`。PATH 二进制保持 warn。文档提交后的复跑若失败，撤回完成声明，不推进深 AX。
 
 ### MAC-002：有预算的深 AX Scene（P0，planned）
 

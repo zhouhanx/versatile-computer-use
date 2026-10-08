@@ -6,7 +6,7 @@
 
 **已发布：浏览器版 Bridge 0.2.8。** GitHub Release `v0.2.8`（Latest）已上线，`curl | sh` 与 `vcu self update` 均真机验证通过。浏览器门禁仍有效。`vcu --version` 仍打印 crate `0.1.0`，不代表没更新。
 
-**下一轮主线：macOS 受限桌面会话。** 历史 CU-D-010…700 已关闭；新排期为 MAC-001…008，MAC-NEXT 为总验收。`MAC-001` 的权限分类、超时回收、HUD 门禁和自建 TextEdit 观察已有定向测试与预检脚本结果，但完成前必须在干净工作树上复跑 `scripts/poc_mac_001_preflight.py` 且 `ok=true`。PATH 上的 Release 二进制不是这棵工作树。未完成前不领取 `MAC-002`。交接见 [HANDOFF.md](HANDOFF.md)。
+**下一轮主线：macOS 受限桌面会话。** 历史 CU-D-010…700 已关闭；新排期为 MAC-001…008，MAC-NEXT 为总验收。`MAC-001` 在 `00d2be7` 干净工作树上预检 `ok=true`；PATH 二进制仍是旧安装，报告为 warn，没有覆盖。下一开发项是 `MAC-002`，只在台账依赖解锁后领取。交接见 [HANDOFF.md](HANDOFF.md)。
 
 Windows 已复测范围以 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md) 的 CU-WIN-SESSION-001…091、[修复计划](PLAN-WINDOWS-FIX.md) 的 WIN-FIX-001…009、[视觉记录](PLAN-WINDOWS-VISUAL.md) 至 WIN-VIS-013 为准。它们是历史证据，不是完整 Windows 产品 CU，也未在本轮复测。CI run `36129175359` 是历史恢复证据，不代表本轮新跑的检查。
 

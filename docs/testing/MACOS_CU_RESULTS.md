@@ -13,7 +13,7 @@
 | 授权下观察自建 TextEdit 并关闭 | pass | 预检 `textedit_observe`，命中 `scroll-text-area`，leftover `0` |
 | 现有 TextEdit/Notes/Finder POC | untested | 不把历史 POC 改绑到这个 SHA |
 | PATH 二进制就是本工作树 | warn | `~/.local/bin` 的 vcu/vcu-daemon/vcu-stage 不是 `target/debug` 或 `target/release`。没有覆盖这些文件 |
-| 干净 source SHA | 待复跑 | 提交前工作树是脏的，预检 `ok=false` |
+| 干净 source SHA | pass | `00d2be7bf15a75ba0bf002c4613e68e3100ff8fb`，预检 `ok=true`，dirty=false |
 
 预检还记录了 Automation、Accessibility 和 `CGPreflightScreenCaptureAccess` 均成功，且没有截屏。显示器只计数，不截图。
 
@@ -23,10 +23,10 @@
 - `node --test extension/tests/*.test.cjs`：47 通过。
 - `scripts/poc_mock_flow.sh`、`scripts/poc_actions_extra.sh`、`scripts/poc_login_state.sh`、`scripts/pack-release.sh`、`scripts/poc_install_curl.sh`：通过。
 - `make check` 第一次失败：本机没有监听 `127.0.0.1:17890` 的 daemon，且 `pack-release.sh` 调用了不存在的 `python`。随后用 `target/debug/vcu daemon start` 临时拉起 daemon，跑完 login-state 后已 `daemon stop`。打包脚本改为 `python3`。没有覆盖 `~/.local/bin`。
-- `python3 scripts/poc_mac_001_preflight.py`：功能项通过，整体 `ok=false`，原因是 source 仍脏。
+- `python3 scripts/poc_mac_001_preflight.py`：在 `00d2be7bf15a75ba0bf002c4613e68e3100ff8fb` 干净工作树上 `ok=true`。Darwin arm64，2 个显示器只计数。TextEdit 标记 `VCU-MAC-001-1791456480-8901`，`scroll-text-area` 命中后 leftover `0`。PATH 三个二进制仍是 warn。
 
 ### 不宣称
 
-- 不宣称 `MAC-001` 已在 AWR 完成。
-- 不宣称 PATH 上的 Release `0.2.8` 包含这次改动。
-- 不领取 `MAC-002`。
+- 不宣称 `~/.local/bin` 的 Release 二进制包含 `00d2be7`。没有覆盖 `vcu-stage`。
+- 不把历史 TextEdit/Notes/Finder POC 改绑到这个 SHA。
+- 文档提交后的复跑 JSON 才是最终绑定；如果复跑不是 `ok=true`，不能把本文件当成完成。

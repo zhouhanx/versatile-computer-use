@@ -1,15 +1,13 @@
 # 会话交接
 
-## 2026-10-08：MAC-001 已测，干净树复跑前不完成（当前入口）
+## 2026-10-08：MAC-001 干净预检通过，等待文档复跑（当前入口）
 
-定向测试、扩展测试、mock/安装 POC 和自建 TextEdit 观察已经跑过。预检在脏工作树上 `textedit_observe=pass`，但 `source_identity=warn`，整体 `ok=false`。这不是完成。
+`00d2be7` 上 `scripts/poc_mac_001_preflight.py` 返回 `ok=true`。报告在 `.local/desktop-cu/mac-MAC-001.json`。PATH 的 vcu/vcu-daemon/vcu-stage 仍是旧安装，状态 warn，没有覆盖。
 
-- 不要覆盖未提交改动，不要覆盖 `~/.local/bin/vcu-stage`。
-- PATH 二进制不是 `target/debug` 或 `target/release`，报告里保持 warn。
-- 现有 TextEdit/Notes/Finder POC 保持 untested，不能改绑到这个 SHA。
-- 提交后必须在干净工作树复跑 `scripts/poc_mac_001_preflight.py`。只有 JSON `ok=true` 才能写完成、`awr work complete` 和推送完成声明。
-- 未完成前不领取 `MAC-002`。领取会话仍是 `01M3KKZTFFQTZ3FF0DWWZHP5QV`，不要结束或窃取。
-- 为跑 login-state 临时启动过 debug daemon（pid 8063），随后已 stop。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
+- 台账已把 `MAC-001` 标为 completed，但 AWR `work complete` 还没做。文档提交后的复跑若不是 `ok=true`，必须撤回完成。
+- 现有 TextEdit/Notes/Finder POC 保持 untested。
+- 领取会话仍是 `01M3KKZTFFQTZ3FF0DWWZHP5QV`，不要结束或窃取。复跑通过后再领取 `MAC-002`。
+- 没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
 
 ```sh
 rtk git status --short
