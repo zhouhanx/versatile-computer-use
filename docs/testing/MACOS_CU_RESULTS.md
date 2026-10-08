@@ -1,6 +1,6 @@
 # macOS CU 结果
 
-更新：2026-10-08。这里只记录已经实际跑过的命令。`.local/desktop-cu/mac-MAC-001.json` 是 gitignore 的绑定报告；工作树脏时 `source_identity=warn`，整体 `ok` 不得当成完成。
+更新：2026-10-09。这里只记录已经实际跑过的命令。`.local/desktop-cu/mac-MAC-001.json` 是 gitignore 的绑定报告；工作树脏时 `source_identity=warn`，整体 `ok` 不得当成完成。
 
 ## MAC-001
 
@@ -64,3 +64,38 @@
 - 不宣称 Finder 在 4500ms 内走完默认深度。`a350741` 在 51 个元素处按 `time_budget` 返回，窗口 id 已绑定。
 - 不宣称文本内容、标尺标记或密码控件子树已展开。这些角色记为 `content_not_expanded`。
 - 没有领取 `MAC-003` 或 `BR-001`。没有结束会话 `01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+
+## MAC-003
+
+更新：2026-10-09。最终绑定是干净 SHA `2033326d03798122cdbf5d1e5478f02bd3fd11ff` 的 `.local/desktop-cu/mac-MAC-003.json`，`ok=true`，`dirty=false`。代码提交就是这个 SHA。夹具是 `VCUAxBinding` 的两个同名 `Go` 按钮，identifier 为 `go-a` 和 `go-b`。
+
+| 验收 | 结果 | 证据 |
+| --- | --- | --- |
+| 未指定窗口拒绝，不产生 bound ref | pass | `ambiguous_window`，`bound_refs=[]` |
+| 同名控件按窗口和 identifier 分开 | pass | 窗口 `1845` 绑定 `go-a`，窗口 `1846` 绑定 `go-b` |
+| 旧 `eN`/`nN` 不动作 | pass | `e1` 和 `n1` HTTP 400，按压仍是 0 |
+| 截图绑定窗口、几何、缩放和代次 | pass | capture `01M4E5D63CMQ7MTYGJQ4NK3C24`，窗口 `1845`，scale `2`，frame `[40,721,360,272]` |
+| 新观察 dry-run 不按，live 只打中目标 | pass | dry-run 按压 0；live 后 `go-a=1`，`go-b=0` |
+| 已消费代次不重放 | pass | 再次 invoke HTTP 400，`go-a` 仍是 1 |
+| 插入、替换不误按 | pass | 两者 HTTP 400；`go-decoy` 和 `go-replaced` 都是 0 |
+| 重排使旧 ref 和 capture 失效 | pass | 几何变化后 HTTP 400，两个按钮都是 0 |
+| 重新观察后仍打中同一窗口 | pass | dry-run 和 live 都是 200，只增加 `go-a` |
+| 关闭后不回退到另一窗口 | pass | HTTP 400，`go-b` 仍是 0 |
+| 另一窗口 live 只增加自己的计数 | pass | `go-b` 从 0 到 1，`go-a` 保持 1 |
+| 不抢焦点，不移动系统光标 | pass | 前台保持 Microsoft Edge；`focus_stolen=false`，`os_cursor_used=false` |
+
+System Events 读到的夹具按钮角色是 `AXUnknown`，不是 `AXButton`。动作隔离使用 `AXIdentifier` 和夹具计数，不把这个角色改写成标准按钮。
+
+### 已跑命令
+
+- `python3 scripts/poc_mac_003_binding.py`：先在脏树定位最后一项断言，再在干净 `2033326` 复跑，`ok=true`。Darwin 27.0 arm64。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
+- `cargo test -p vcu-server --offline --lib`：112 通过。
+- `cargo test -p vcu-mcp --offline --test mcp_stdio`：1 通过。
+- `cargo test -p vcu-cli --offline`：4 通过。
+
+### 不宣称
+
+- 不宣称夹具按钮的 AX 角色是 `AXButton`。这次读到的是 `AXUnknown`。
+- 不宣称锁屏时公开 AX 仍能看到窗口。锁屏会把窗口藏起来，POC 直接失败。
+- 没有领取 `MAC-004` 或 `BR-001`。没有结束既有 AWR 会话。

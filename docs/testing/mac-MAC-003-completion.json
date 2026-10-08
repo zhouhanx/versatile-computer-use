@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "work_item": "MAC-003",
+  "source_sha": "2033326d03798122cdbf5d1e5478f02bd3fd11ff",
+  "command": "python3 scripts/poc_mac_003_binding.py",
+  "scope": [
+    "MAC-003"
+  ],
+  "verified_at": 1791476911305,
+  "checks": [
+    {
+      "name": "ambiguous and same-name windows",
+      "passed": true,
+      "details": "Clean 2033326 refused an unbound snapshot with ambiguous_window and no bound refs. Windows 1845 and 1846 both named Go were bound separately as go-a and go-b.",
+      "criteria": [
+        "歧义目标明确拒绝；截图绑定窗口几何缩放和观察代次，失效要求重新观察"
+      ]
+    },
+    {
+      "name": "stale refs captures and mutations",
+      "passed": true,
+      "details": "e1 and n1 returned HTTP 400 without presses. Insert, replace, reorder and close-a returned HTTP 400 and did not press the decoy, replacement, or the other window. Replay of a consumed generation was refused.",
+      "criteria": [
+        "双窗口/同名控件/窗口重排关闭/节点插入移除/旧引用和旧截图均有负向测试且无误操作"
+      ]
+    },
+    {
+      "name": "fresh dry-run and live isolation",
+      "passed": true,
+      "details": "Fresh dry-run did not press. Live press hit only go-a, then after reobserve only go-a again. Window B later incremented only go-b from 0 to 1 while go-a stayed at 1. Frontmost stayed Microsoft Edge. os_cursor_used and focus_stolen were false. Capture was bound to window 1845 at scale 2.",
+      "criteria": [
+        "新观察的正确目标 dry-run/live 通过且不静默抢焦点，不自动重放 mutation"
+      ]
+    }
+  ]
+}

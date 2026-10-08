@@ -1,5 +1,15 @@
 # 会话交接
 
+## 2026-10-09：MAC-003 完成
+
+`2033326d03798122cdbf5d1e5478f02bd3fd11ff` 干净工作树复跑 `scripts/poc_mac_003_binding.py` 返回 `ok=true`，`dirty=false`。证据 `mac-003-binding` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-004` 或 `BR-001`，除非用户明确要求。不要结束会话 `01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+- 未指定窗口返回 `ambiguous_window` 且没有 bound ref。同名 `Go` 分别绑定 `go-a` 和 `go-b`。
+- 旧 `e1`/`n1`、插入、替换、重排、关闭和已消费代次都是 HTTP 400，没有误按。新观察后的 dry-run 不按，live 只增加目标计数。
+- 截图绑定窗口 `1845`、几何、缩放 2 和 scene 代次。前台保持 Microsoft Edge。`os_cursor_used=false`，`focus_stolen=false`。
+- 夹具按钮的 System Events 角色是 `AXUnknown`，不是 `AXButton`。隔离靠 identifier 和按压计数，不把角色写成按钮。
+- 锁屏时公开 AX 会把窗口藏成 `AXApplication`。POC 在锁屏时直接失败。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
+
 ## 2026-10-08：MAC-002 完成
 
 `a350741e2c875bf70ef0574ee30912d0b7e2e32a` 干净工作树复跑 `scripts/poc_mac_002_scene.py` 返回 `ok=true`，`dirty=false`。TextEdit 29 个元素，Finder 51 个元素，协作式超时 9 个元素。证据 `mac-002-scene` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-003` 或 `BR-001`，除非用户明确要求。不要结束会话 `01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。

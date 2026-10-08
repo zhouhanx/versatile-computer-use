@@ -1252,19 +1252,22 @@ work_items:
 
   - id: MAC-003
     title: macOS Scene 引用与窗口截图绑定
-    status: planned
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-macos-desktop
     required: true
     priority: P0
-    summary: 基于 MAC-002 窗口身份绑定 scene/ref/capture；拒绝重新遍历 eN 错配和旧截图新树混用。
+    summary: 2033326 干净 POC ok=true。同名控件按窗口和 identifier 绑定；旧 eN、旧 capture、插入、替换、重排和关闭都不误操作。
     acceptance:
       - "双窗口/同名控件/窗口重排关闭/节点插入移除/旧引用和旧截图均有负向测试且无误操作"
       - "歧义目标明确拒绝；截图绑定窗口几何缩放和观察代次，失效要求重新观察"
       - "新观察的正确目标 dry-run/live 通过且不静默抢焦点，不自动重放 mutation"
-    next_action: MAC-002 完成后先证明旧 eN/旧 capture 失效，再接精确动作路由
-    evidence: []
+    next_action: 已完成。下一开发项是 MAC-004，只在用户要求后领取。不要结束会话 01M4DY9QJG6MXVSR03ZSV76SN1、01M4DJ9FZJA5A39ZS0CBB5V8GA 或 01M3KKZTFFQTZ3FF0DWWZHP5QV。
+    evidence:
+      - "docs/testing/MACOS_CU_RESULTS.md"
+      - "docs/testing/mac-MAC-003-completion.json"
+      - ".local/desktop-cu/mac-MAC-003.json"
     depends_on: ["MAC-002"]
 
   - id: MAC-004

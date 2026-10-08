@@ -54,10 +54,10 @@
 - 验收：夹具含深度超过 14、同级超过 32 个子元素，目标可通过显式子树展开到达；有限预算返回准确原因，不能以空树假成功；密码值不进入 Scene/日志；低预算与异常节点不使 daemon 失去响应。
 - 预算：首轮以现有 4.5s/8s 超时为基线记录耗时，不承诺未测性能。最终默认节点、深度、超时和输出预算必须由夹具及 TextEdit/Finder 实测确定并写进报告。
 
-### MAC-003：指定窗口、Scene 引用与截图绑定（P0，planned）
+### MAC-003：指定窗口、Scene 引用与截图绑定（P0，证据 `2033326`）
 
 - 前置：MAC-002。
-- 落点：`app/macos.rs`、`app/mod.rs`、`browser/desktop.rs`、`api.rs`、`state.rs`；拟新增 `scripts/poc_mac_003_binding.py`。
+- 落点：`app/macos.rs`、`app/binding.rs`、`app/mod.rs`、`browser/desktop.rs`、`api.rs`、`state.rs`；`scripts/poc_mac_003_binding.py`。
 - 工作：按 pid/窗口身份观察和动作；Scene 代次绑定 ref。校验目标角色与身份，禁止重新 BFS 后只按 `eN` 执行；截图绑定窗口、几何、缩放和观察代次。明确移动/滚动/重建后的失效规则。
 - 验收：同一 App 两个自建窗口、同名控件、窗口重排/关闭、元素插入/移除、旧 Scene/ref/capture 的负向测试均不误操作；无明确目标且有歧义时拒绝；新观察后正确目标 dry-run 与 live 均可验证；无静默焦点抢占。
 
