@@ -1,4 +1,5 @@
 use std::fs;
+use std::process::{Command, Stdio};
 
 use vcu_core::{DaemonStatus, DoctorCheck, DoctorReport, UserConfig, VcuPaths};
 
@@ -196,24 +197,22 @@ pub async fn build_report(paths: &VcuPaths, live: Option<&AppState>) -> DoctorRe
     // macOS accessibility probe
     #[cfg(target_os = "macos")]
     {
-        let ax = std::process::Command::new("osascript")
+        let probe = std::process::Command::new("osascript")
             .args(["-e", "tell application \"System Events\" to get name of first process"])
             .output();
-        let ax_ok = ax.map(|o| o.status.success()).unwrap_or(false);
-        checks.push(DoctorCheck {
-            name: "macos_accessibility".into(),
-            status: if ax_ok { "pass" } else { "fail" }.into(),
-            detail: if ax_ok {
-                "System Events reachable — desktop surface can build Scene".into()
-            } else {
-                "Accessibility missing — desktop surface cannot observe real windows".into()
-            },
-            hint: if ax_ok {
-                None
-            } else {
-                Some("系统设置 → 隐私与安全 → 辅助功能（一次授权给终端和 vcu-daemon；不要去点 Edge Allow debugging）".into())
-            },
-        });
+        let (probe_ok, stderr) = match probe {
+            Ok(output) => (
+                output.status.success(),
+                String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            ),
+            Err(err) => (false, err.to_string()),
+        };
+        let ax_ok = probe_ok;
+        let perm = macos_permission_checks(probe_ok, &stderr);
+        if perm.iter().any(|check| check.status == "fail") {
+            ok = false;
+        }
+        checks.extend(perm);
         let rec = crate::app::macos::screen_capture_enabled();
         checks.push(scene_webview_crop_check(ax_ok, rec));
         checks.push(DoctorCheck {
@@ -252,6 +251,43 @@ pub async fn build_report(paths: &VcuPaths, live: Option<&AppState>) -> DoctorRe
         checks.push(stage_helper_check(found.as_deref(), std::env::consts::OS));
     }
 
+    let exe = std::env::current_exe()
+        .ok()
+        .map(|path| path.display().to_string());
+    let daemon_command = daemon_command_path(daemon.pid);
+    checks.push(host_identity_check(
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        exe.as_deref(),
+        daemon_command.as_deref(),
+        daemon.pid,
+    ));
+    let in_process = live.is_some();
+    let liveness_alive = if in_process {
+        Some(true)
+    } else if daemon.pid.is_some() {
+        #[cfg(unix)]
+        {
+            daemon.pid.map(pid_alive_kill0)
+        }
+        #[cfg(not(unix))]
+        {
+            None
+        }
+    } else {
+        None
+    };
+    let liveness = daemon_liveness_check(daemon.pid, liveness_alive, in_process);
+    if liveness.status == "fail" && daemon.running {
+        ok = false;
+    }
+    checks.push(liveness);
+    let version = version_identity_check(env!("CARGO_PKG_VERSION"), daemon.version.as_deref());
+    if version.status == "fail" {
+        ok = false;
+    }
+    checks.push(version);
+    checks.push(git_sha_check(read_git_sha().as_deref()));
     checks.push(app_backend_check(std::env::consts::OS));
     if let Some(scope) = windows_desktop_scope_check(std::env::consts::OS) {
         checks.push(scope);
@@ -336,6 +372,250 @@ fn read_pid(paths: &VcuPaths) -> Option<u32> {
         .and_then(|s| s.trim().parse().ok())
 }
 
+
+fn macos_permission_checks(probe_ok: bool, stderr: &str) -> Vec<DoctorCheck> {
+    if probe_ok {
+        return vec![
+            DoctorCheck {
+                name: "macos_accessibility".into(),
+                status: "pass".into(),
+                detail: "System Events process probe succeeded; Accessibility is available to this process".into(),
+                hint: None,
+            },
+            DoctorCheck {
+                name: "macos_automation".into(),
+                status: "pass".into(),
+                detail: "Apple Events to System Events succeeded; Automation is available to this process".into(),
+                hint: None,
+            },
+        ];
+    }
+    let stderr = stderr.trim();
+    match crate::app::macos::classify_ax_permission_error(stderr) {
+        Some(vcu_core::ErrorCode::AutomationDenied) => vec![
+            DoctorCheck {
+                name: "macos_automation".into(),
+                status: "fail".into(),
+                detail: format!("Automation denied: {stderr}"),
+                hint: Some(vcu_core::ErrorCode::AutomationDenied.default_hint().into()),
+            },
+            DoctorCheck {
+                name: "macos_accessibility".into(),
+                status: "untested".into(),
+                detail: "Accessibility was not classified; Apple Events failed before an assistive-access result".into(),
+                hint: Some("Grant Automation first, then rerun doctor. Do not treat this as Accessibility and do not click Edge Allow.".into()),
+            },
+        ],
+        Some(vcu_core::ErrorCode::AccessibilityDenied) => vec![
+            DoctorCheck {
+                name: "macos_accessibility".into(),
+                status: "fail".into(),
+                detail: format!("Accessibility denied: {stderr}"),
+                hint: Some(vcu_core::ErrorCode::AccessibilityDenied.default_hint().into()),
+            },
+            DoctorCheck {
+                name: "macos_automation".into(),
+                status: "pass".into(),
+                detail: "Apple Events reached System Events; the failure is assistive access, not Automation".into(),
+                hint: None,
+            },
+        ],
+        _ => vec![
+            DoctorCheck {
+                name: "macos_ax_probe".into(),
+                status: "fail".into(),
+                detail: format!("System Events probe failed without a permission class: {stderr}"),
+                hint: Some("Inspect the probe stderr. Do not reset TCC and do not click Edge Allow debugging.".into()),
+            },
+            DoctorCheck {
+                name: "macos_accessibility".into(),
+                status: "untested".into(),
+                detail: "Accessibility class unknown".into(),
+                hint: None,
+            },
+            DoctorCheck {
+                name: "macos_automation".into(),
+                status: "untested".into(),
+                detail: "Automation class unknown".into(),
+                hint: None,
+            },
+        ],
+    }
+}
+
+fn host_identity_check(
+    os: &str,
+    arch: &str,
+    exe: Option<&str>,
+    daemon_command: Option<&str>,
+    daemon_pid: Option<u32>,
+) -> DoctorCheck {
+    let binary = exe.filter(|path| !path.trim().is_empty()).unwrap_or("unknown");
+    let daemon = daemon_command.unwrap_or("unavailable");
+    let pid = daemon_pid
+        .map(|pid| pid.to_string())
+        .unwrap_or_else(|| "none".into());
+    DoctorCheck {
+        name: "host_identity".into(),
+        status: if binary == "unknown" { "warn" } else { "pass" }.into(),
+        detail: format!("os={os} arch={arch} binary={binary} daemon_pid={pid} daemon_command={daemon}"),
+        hint: if binary == "unknown" {
+            Some("current_exe was unavailable; record the built vcu and vcu-daemon paths in the MAC-001 report".into())
+        } else {
+            None
+        },
+    }
+}
+
+fn daemon_liveness_check(pid: Option<u32>, alive: Option<bool>, in_process: bool) -> DoctorCheck {
+    if in_process {
+        return DoctorCheck {
+            name: "daemon_liveness".into(),
+            status: "pass".into(),
+            detail: "in-process daemon is the current process; liveness was not probed with a signal".into(),
+            hint: None,
+        };
+    }
+    match (pid, alive) {
+        (None, _) => DoctorCheck {
+            name: "daemon_liveness".into(),
+            status: "untested".into(),
+            detail: "no daemon pid; liveness not claimed".into(),
+            hint: Some("Run `vcu daemon status` after start if a live daemon is expected.".into()),
+        },
+        (Some(pid), Some(true)) => DoctorCheck {
+            name: "daemon_liveness".into(),
+            status: "pass".into(),
+            detail: format!("pid {pid} is alive via kill -0 only; doctor did not capture the screen"),
+            hint: None,
+        },
+        (Some(pid), Some(false)) => DoctorCheck {
+            name: "daemon_liveness".into(),
+            status: "fail".into(),
+            detail: format!("pid {pid} is not alive; stale pid file or exited daemon"),
+            hint: Some("Clear the stale pid with `vcu daemon stop`, then `vcu daemon start` from this build.".into()),
+        },
+        (Some(pid), None) => DoctorCheck {
+            name: "daemon_liveness".into(),
+            status: "untested".into(),
+            detail: format!("pid {pid} is recorded but kill -0 was not available"),
+            hint: None,
+        },
+    }
+}
+
+fn version_identity_check(cli_version: &str, daemon_version: Option<&str>) -> DoctorCheck {
+    match daemon_version.map(str::trim).filter(|version| !version.is_empty()) {
+        None => DoctorCheck {
+            name: "version_identity".into(),
+            status: "untested".into(),
+            detail: format!("cli={cli_version}; daemon health version unavailable. Extension Bridge 0.2.8 is not a daemon version."),
+            hint: Some("Compare this CLI CARGO_PKG_VERSION with /v1/health data.version from the same build.".into()),
+        },
+        Some(daemon) if daemon == cli_version => DoctorCheck {
+            name: "version_identity".into(),
+            status: "pass".into(),
+            detail: format!("cli={cli_version} daemon={daemon}"),
+            hint: None,
+        },
+        Some(daemon) => DoctorCheck {
+            name: "version_identity".into(),
+            status: "fail".into(),
+            detail: format!("cli={cli_version} daemon={daemon}; crate versions differ. Extension Bridge 0.2.8 is not this comparison."),
+            hint: Some("Restart vcu-daemon from the same build as this CLI.".into()),
+        },
+    }
+}
+
+fn git_sha_check(sha: Option<&str>) -> DoctorCheck {
+    let raw = sha.map(str::trim).filter(|value| !value.is_empty());
+    let Some(raw) = raw else {
+        return DoctorCheck {
+            name: "git_sha".into(),
+            status: "untested".into(),
+            detail: "source SHA unavailable; not claiming a clean match".into(),
+            hint: Some("Record `git rev-parse HEAD` and `git status --short` from the workspace. Do not invent a SHA.".into()),
+        };
+    };
+    let head = raw.split_whitespace().next().unwrap_or("");
+    if head.len() < 7 || !head.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return DoctorCheck {
+            name: "git_sha".into(),
+            status: "untested".into(),
+            detail: format!("source identity was not a git SHA: {raw}"),
+            hint: None,
+        };
+    }
+    if raw.contains("dirty") || raw.contains("worktree-untested") {
+        return DoctorCheck {
+            name: "git_sha".into(),
+            status: "warn".into(),
+            detail: format!("source {raw}"),
+            hint: Some("Worktree differs from HEAD or could not be checked. Bind evidence to the diff, not HEAD alone.".into()),
+        };
+    }
+    DoctorCheck {
+        name: "git_sha".into(),
+        status: "pass".into(),
+        detail: format!("source {head}"),
+        hint: None,
+    }
+}
+
+fn read_git_sha() -> Option<String> {
+    let sha = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD"])
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    if !sha.status.success() {
+        return None;
+    }
+    let sha = String::from_utf8_lossy(&sha.stdout).trim().to_string();
+    if sha.len() < 7 || !sha.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        return None;
+    }
+    let dirty = Command::new("git")
+        .args(["status", "--porcelain"])
+        .stderr(Stdio::null())
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| !String::from_utf8_lossy(&output.stdout).trim().is_empty());
+    match dirty {
+        Some(true) => Some(format!("{sha} dirty")),
+        Some(false) => Some(sha),
+        None => Some(format!("{sha} worktree-untested")),
+    }
+}
+
+fn daemon_command_path(pid: Option<u32>) -> Option<String> {
+    let pid = pid.filter(|pid| *pid != 0)?;
+    let output = Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "command="])
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let line = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if line.is_empty() { None } else { Some(line) }
+}
+
+#[cfg(unix)]
+fn pid_alive_kill0(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
 
 fn scene_webview_crop_check(ax_ok: bool, rec: bool) -> DoctorCheck {
     let ready = ax_ok && rec;
@@ -509,8 +789,10 @@ fn stage_helper_check(found: Option<&std::path::Path>, os: &str) -> DoctorCheck 
 #[cfg(test)]
 mod tests {
     use super::{
-        app_backend_check, dual_browser_lens_check, login_browser_check, scene_webview_crop_check,
-        stage_helper_check, windows_desktop_scope_check,
+        app_backend_check, daemon_liveness_check, dual_browser_lens_check, git_sha_check,
+        host_identity_check, login_browser_check, macos_permission_checks,
+        scene_webview_crop_check, stage_helper_check, version_identity_check,
+        windows_desktop_scope_check,
     };
     use std::path::Path;
 
@@ -604,6 +886,106 @@ mod tests {
         assert_eq!(w.status, "warn");
         let w = scene_webview_crop_check(false, true);
         assert_eq!(w.status, "warn");
+    }
+
+    #[test]
+    fn permission_classes_do_not_collapse_or_reset_tcc() {
+        let automation = macos_permission_checks(
+            false,
+            "Not authorized to send Apple events to System Events. (-1743)",
+        );
+        let automation_fail = automation.iter().find(|check| check.name == "macos_automation").unwrap();
+        assert_eq!(automation_fail.status, "fail");
+        let hint = automation_fail.hint.clone().unwrap();
+        assert!(hint.contains("自动化"), "{hint}");
+        assert!(!hint.contains("辅助功能"), "{hint}");
+        assert!(!hint.contains("tccutil"), "{hint}");
+        let ax = automation.iter().find(|check| check.name == "macos_accessibility").unwrap();
+        assert_eq!(ax.status, "untested");
+
+        let access = macos_permission_checks(
+            false,
+            "osascript is not allowed assistive access. (-25211)",
+        );
+        let access_fail = access.iter().find(|check| check.name == "macos_accessibility").unwrap();
+        assert_eq!(access_fail.status, "fail");
+        let hint = access_fail.hint.clone().unwrap();
+        assert!(hint.contains("辅助功能"), "{hint}");
+        assert!(hint.contains("Do not click Edge Allow"), "{hint}");
+        assert_eq!(
+            access.iter().find(|check| check.name == "macos_automation").unwrap().status,
+            "pass"
+        );
+
+        let unknown = macos_permission_checks(false, "syntax error");
+        assert!(unknown.iter().all(|check| check.status != "pass"));
+        assert!(unknown.iter().any(|check| check.status == "untested"));
+        let ok = macos_permission_checks(true, "");
+        assert!(ok.iter().all(|check| check.status == "pass"));
+    }
+
+    #[test]
+    fn identity_version_and_sha_do_not_fake_pass() {
+        let host = host_identity_check("macos", "aarch64", Some("/tmp/vcu"), Some("/tmp/vcu-daemon"), Some(42));
+        assert_eq!(host.status, "pass");
+        assert!(host.detail.contains("os=macos"));
+        assert!(host.detail.contains("arch=aarch64"));
+        assert!(host.detail.contains("binary=/tmp/vcu"));
+        assert!(host.detail.contains("daemon_pid=42"));
+        assert_eq!(host_identity_check("macos", "aarch64", None, None, None).status, "warn");
+
+        let matched = version_identity_check("0.1.0", Some("0.1.0"));
+        assert_eq!(matched.status, "pass");
+        let missing = version_identity_check("0.1.0", None);
+        assert_eq!(missing.status, "untested");
+        assert!(missing.detail.contains("0.2.8"));
+        assert_ne!(missing.status, "fail");
+        let mismatched = version_identity_check("0.1.0", Some("0.2.8"));
+        assert_eq!(mismatched.status, "fail");
+        assert!(mismatched.detail.contains("Extension Bridge 0.2.8 is not this comparison"));
+
+        assert_eq!(git_sha_check(None).status, "untested");
+        assert_ne!(git_sha_check(None).status, "pass");
+        let dirty = git_sha_check(Some("aa28f36abcdef dirty"));
+        assert_eq!(dirty.status, "warn");
+        assert_eq!(git_sha_check(Some("aa28f36abcdef")).status, "pass");
+        assert_eq!(git_sha_check(Some("not-a-sha")).status, "untested");
+
+        assert_eq!(daemon_liveness_check(None, None, false).status, "untested");
+        assert_eq!(daemon_liveness_check(Some(9), Some(false), false).status, "fail");
+        assert_eq!(daemon_liveness_check(Some(9), None, false).status, "untested");
+        let live = daemon_liveness_check(Some(9), Some(true), false);
+        assert_eq!(live.status, "pass");
+        assert!(live.detail.contains("kill -0"));
+        assert!(live.detail.contains("did not capture the screen"));
+        assert_eq!(daemon_liveness_check(None, None, true).status, "pass");
+    }
+
+    #[test]
+    fn doctor_source_does_not_capture_the_screen_or_reset_tcc() {
+        let src = include_str!("doctor.rs");
+        let prod = src.split("mod tests").next().unwrap_or(src);
+        assert!(!prod.contains("screencapture"), "doctor must not invoke screencapture");
+        assert!(!prod.contains("CGDisplayCreateImage"));
+        assert!(!prod.contains("CGWindowListCreateImage"));
+        assert!(!prod.contains("tccutil"));
+        assert!(prod.contains("kill -0") || prod.contains("[\"-0\""));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn kill0_does_not_signal_a_live_process() {
+        let mut child = std::process::Command::new("/bin/sleep").arg("30").spawn().expect("sleep");
+        let pid = child.id();
+        assert!(super::pid_alive_kill0(pid));
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        match child.try_wait() {
+            Ok(None) => {}
+            other => panic!("kill -0 terminated the sleeper: {other:?}"),
+        }
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(!super::pid_alive_kill0(pid));
     }
 
     #[test]

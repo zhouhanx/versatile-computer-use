@@ -647,10 +647,7 @@ pub fn frontmost_user_browser_name() -> Option<String> {
 /// Map a process image or macOS process name to the login-state browser label.
 /// WebView2 and updater executables are not the user browser.
 pub fn browser_name_from_process_image(path: &str) -> Option<&'static str> {
-    let file = std::path::Path::new(path)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(path);
+    let file = path.rsplit(['/', '\\']).next().filter(|part| !part.is_empty()).unwrap_or(path);
     match file.to_ascii_lowercase().as_str() {
         "msedge.exe" | "microsoft edge" | "microsoft edge.app" => Some("Microsoft Edge"),
         "chrome.exe" | "google chrome" | "google chrome.app" | "chromium.exe" | "chromium" => {

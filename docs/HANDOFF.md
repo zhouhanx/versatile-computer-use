@@ -1,6 +1,70 @@
 # 会话交接
 
-## 2026-09-28 16:49 CST：本轮会话关闭记录（当前入口）
+## 2026-10-08：MAC-001 已测，干净树复跑前不完成（当前入口）
+
+定向测试、扩展测试、mock/安装 POC 和自建 TextEdit 观察已经跑过。预检在脏工作树上 `textedit_observe=pass`，但 `source_identity=warn`，整体 `ok=false`。这不是完成。
+
+- 不要覆盖未提交改动，不要覆盖 `~/.local/bin/vcu-stage`。
+- PATH 二进制不是 `target/debug` 或 `target/release`，报告里保持 warn。
+- 现有 TextEdit/Notes/Finder POC 保持 untested，不能改绑到这个 SHA。
+- 提交后必须在干净工作树复跑 `scripts/poc_mac_001_preflight.py`。只有 JSON `ok=true` 才能写完成、`awr work complete` 和推送完成声明。
+- 未完成前不领取 `MAC-002`。领取会话仍是 `01M3KKZTFFQTZ3FF0DWWZHP5QV`，不要结束或窃取。
+- 为跑 login-state 临时启动过 debug daemon（pid 8063），随后已 stop。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
+
+```sh
+rtk git status --short
+rtk proxy python3 scripts/poc_mac_001_preflight.py
+rtk proxy awr --project . status
+```
+
+## 2026-09-28 会话关闭：MAC-001 部分落地，未验收（历史入口）
+
+用户要求停止当前开发并写入交接。`MAC-001` 没有完成，没有 POC 结果，没有测试通过记录，没有提交，没有推送，没有领取 `MAC-002`。
+
+### 工作区
+
+- 目录：`/Users/zhouhan/ai/versatile-computer-use`；分支 `main`。
+- HEAD 是 `aa28f36`（`docs: record macOS-first plans and acceptance`），比 `origin/main` 超前 1 个提交。关闭前未 fetch，不能推断远端没有新提交。这个文档提交本身尚未推送。
+- **MAC-001 代码和脚本都未提交。** 已跟踪修改：`crates/vcu-core/src/error.rs`、`crates/vcu-core/tests/errors_protocol.rs`、`crates/vcu-server/src/api.rs`、`crates/vcu-server/src/app/macos.rs`、`crates/vcu-server/src/browser/desktop.rs`、`crates/vcu-server/src/doctor.rs`、`crates/vcu-server/src/stage.rs`、`helpers/vcu-stage/main.swift`。未跟踪：`scripts/poc_mac_001_preflight.py`。不要清理或覆盖这些文件。
+- 没有 `.local/desktop-cu/mac-MAC-001.json`，也没有 `docs/testing/MACOS_CU_RESULTS.md`。证据文件只能在 POC 实际运行后写入。
+
+### 已写入但未验证的代码
+
+- `ErrorCode::AutomationDenied` 已加入核心错误、协议测试、CLI 退出码和 API 映射。提示针对自动化，不把 `-1743`/`-1744` 写成辅助功能。
+- `app/macos.rs` 用 `ps -o lstart=` 识别超时进程；空的或不相符的起始记录不得发信号。缺 Screen Recording 时截图仍返回 `Ok(None)`。截图失败分为 `screenshot_capture_failed` 和 `screenshot_decode_failed`。
+- Stage HUD 在 `placeHud`/`orderFront` 后写 `{control}.ready`。进程活着但没有 ready 文件时，不把 250ms 存活当成就绪。`require_hud_for_action` 会拒绝未显示、未就绪、helper 已退出或已中止的非 mock handle。desktop click/type/hover/click_pixels/act 已接这个门禁。
+- `doctor.rs` 已补上此前缺失的 `macos_permission_checks`、`host_identity_check`、`daemon_liveness_check`、`version_identity_check`、`git_sha_check`、`read_git_sha`、`pid_alive_kill0`。daemon 存活只用 `kill -0`。doctor 源码不得调用截屏。Git SHA 不可用时是 `untested`，脏工作区是 `warn`，不能假通过。版本比较的是 CLI 与 daemon 的 crate 版本，不把扩展 Bridge `0.2.8` 当成 daemon 版本。
+- `scripts/poc_mac_001_preflight.py` 已写好，但**没有运行**。它只在 Automation 和 Accessibility 都成功时观察自建 TextEdit，并且只关闭带标记的临时文档。现有 TextEdit/Notes/Finder POC 不重跑，脚本里记为 `untested`。
+
+### 明确未做
+
+- 没有 `cargo test`、`make check`、扩展测试，也没有编译确认。新增 doctor 函数可能仍有编译或测试错误。
+- 没有真机权限探针，没有 TextEdit 观察，没有超时/HUD 的进程级验收输出。权限阻塞不能写成完成。
+- 没有 `awr work complete`，没有聚焦提交，没有推送 `aa28f36` 或 MAC-001。
+- 没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信，没有编辑 `~/.codex/computer-use/`，没有覆盖 `~/.local/bin/vcu-stage`。
+
+### AWR
+
+- 关闭时 `awr status`：100 项，Continue 1，Claimable 0，Waiting 30，Blocked 1。当前项仍是 `MAC-001`，源状态保持 `ready`，证据为空。
+- `MAC-001` 的领取会话是 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。不要结束或窃取该会话。另有三条更早的 active 会话：`01M2TR5WWZZSNG58HJEKCAQ99G`、`01M2QWSMF94JZ8A9VZSPY22G1V`、`01M2QVJ3YYJSFGAJFR6DDRNYW0`，也不是本次关闭动作创建的。
+- 25 个 planned 与 6 个 draft 仍不可领。`VISION-NEXT` 的 blocked 是 draft 停放，不是新的产品故障。依赖等待不是完成。
+
+### 下次入口
+
+1. 保留工作树。先读本段，再读 `docs/PLAN.md` 和 `docs/PLAN-MACOS.md`。
+2. 继续 `MAC-001`，不要领取 `MAC-002`。先编译并跑新增 doctor、超时和 HUD 测试。
+3. 测试通过后运行 `scripts/poc_mac_001_preflight.py`。只有脚本实际写出 `.local/desktop-cu/mac-MAC-001.json` 后，才写 `docs/testing/MACOS_CU_RESULTS.md`。
+4. TextEdit 观察被权限挡住时，保留阻塞原因，不把 `MAC-001` 标完成，不推送完成声明。
+5. 只有验收证据齐全后，才 `awr work complete`、聚焦提交，并推送尚未推送的 `aa28f36` 与 MAC-001 提交。停止前再跑 `rtk proxy awr --project . ready`。
+
+```sh
+rtk git status --short
+rtk proxy awr --project . status
+rtk cargo test -p vcu-server --lib doctor::tests app::macos::tests stage::tests -- --test-threads=8
+rtk proxy python3 scripts/poc_mac_001_preflight.py
+```
+
+## 2026-09-28 16:49 CST：本轮会话关闭记录（历史入口）
 
 用户要求保存当前信息后关闭会话。本轮完成的是全部主线规划、验收设计和台账统一；未实施任何新产品功能。优先级已经确定为 macOS，下一开发入口为 MAC-001，不需要重新讨论是否优先 macOS。
 

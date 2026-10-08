@@ -1,6 +1,6 @@
 //! macOS app adapter via osascript / System Events (AX).
 //! Desktop Actuator uses AXPress / AXSetValue and never warps the user cursor.
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use async_trait::async_trait;
 use vcu_core::{ErrorCode, VcuError, VcuResult};
@@ -65,78 +65,31 @@ impl MacosAppBackend {
             })?;
         if !output.status.success() {
             let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            if err.to_lowercase().contains("not allowed")
-                || err.to_lowercase().contains("assistive")
-                || err.to_lowercase().contains("1002")
-            {
-                return Err(VcuError::with_detail(
-                    ErrorCode::AccessibilityDenied,
-                    "macOS Accessibility permission missing for osascript/System Events",
-                    err,
-                ));
-            }
-            return Err(VcuError::with_detail(
-                ErrorCode::ActionFailed,
-                "osascript failed",
-                err,
-            ));
+            return Err(script_error("osascript failed", &err, "osascript failed"));
         }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
 
     fn run_jxa_timeout(script: &str, timeout_ms: u64) -> VcuResult<String> {
-        let child = Command::new("osascript")
-            .args(["-l", "JavaScript", "-e", script])
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                VcuError::with_detail(ErrorCode::Internal, "jxa spawn failed", e.to_string())
-            })?;
-        let pid = child.id();
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(timeout_ms));
-            let _ = Command::new("kill").arg("-9").arg(pid.to_string()).status();
-        });
-        let output = child.wait_with_output().map_err(|e| {
-            VcuError::with_detail(ErrorCode::Internal, "jxa wait", e.to_string())
-        })?;
-        if !output.status.success() {
-            let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            if err.is_empty() {
-                return Err(VcuError::coded(ErrorCode::ActionFailed, "jxa timed out"));
-            }
-            return Err(VcuError::with_detail(ErrorCode::ActionFailed, "jxa failed", err));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        run_captured_timeout(
+            "osascript",
+            &["-l", "JavaScript", "-e", script],
+            timeout_ms,
+            "jxa spawn failed",
+            "jxa failed",
+            "jxa timed out",
+        )
     }
 
     fn run_osascript_timeout(script: &str, timeout_ms: u64) -> VcuResult<String> {
-        let child = Command::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                VcuError::with_detail(ErrorCode::Internal, "osascript spawn failed", e.to_string())
-            })?;
-        let pid = child.id();
-        std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(timeout_ms));
-            let _ = Command::new("kill").arg("-9").arg(pid.to_string()).status();
-        });
-        let output = child.wait_with_output().map_err(|e| {
-            VcuError::with_detail(ErrorCode::Internal, "osascript wait", e.to_string())
-        })?;
-        if !output.status.success() {
-            let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            if err.is_empty() {
-                return Err(VcuError::coded(ErrorCode::ActionFailed, "ax command timed out"));
-            }
-            return Err(VcuError::with_detail(ErrorCode::ActionFailed, "osascript failed", err));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        run_captured_timeout(
+            "osascript",
+            &["-e", script],
+            timeout_ms,
+            "osascript spawn failed",
+            "osascript failed",
+            "ax command timed out",
+        )
     }
 
     fn allowed(&self, name: &str) -> bool {
@@ -208,6 +161,156 @@ pub fn screen_capture_enabled() -> bool {
         _ => {}
     }
     screen_capture_preflight()
+}
+
+/// Decide whether a delayed timeout killer may signal `pid`.
+/// An empty recorded start is not identity, so it must not signal.
+/// A missing or different current start means the pid exited or was reused.
+pub fn should_signal_timed_out_pid(recorded_start: &str, current_start: Option<&str>) -> bool {
+    let recorded = recorded_start.trim();
+    if recorded.is_empty() {
+        return false;
+    }
+    let Some(now) = current_start.map(str::trim).filter(|s| !s.is_empty()) else {
+        return false;
+    };
+    now == recorded
+}
+
+/// Split Apple Events Automation denials from Accessibility denials.
+/// `-1743`/`-1744` are not assistive-access failures.
+pub fn permission_error_is_terminal(code: ErrorCode) -> bool {
+    matches!(
+        code,
+        ErrorCode::AccessibilityDenied | ErrorCode::AutomationDenied
+    )
+}
+
+pub fn classify_ax_permission_error(err: &str) -> Option<ErrorCode> {
+    let lower = err.to_lowercase();
+    if lower.contains("not authorized to send")
+        || lower.contains("-1743")
+        || lower.contains("-1744")
+        || (lower.contains("apple event") && lower.contains("not authorized"))
+    {
+        return Some(ErrorCode::AutomationDenied);
+    }
+    if lower.contains("assistive")
+        || lower.contains("-25211")
+        || lower.contains("1002")
+        || lower.contains("not allowed")
+    {
+        return Some(ErrorCode::AccessibilityDenied);
+    }
+    None
+}
+
+/// Capture command failure and PNG decode failure are different classes.
+/// A missing Screen Recording grant is not either class; callers return `Ok(None)`.
+pub fn classify_screenshot_failure(capture_ok: bool, png_decodable: bool) -> &'static str {
+    if !capture_ok {
+        "screenshot_capture_failed"
+    } else if !png_decodable {
+        "screenshot_decode_failed"
+    } else {
+        "screenshot_ok"
+    }
+}
+
+fn process_start_token(pid: u32) -> String {
+    if pid == 0 {
+        return String::new();
+    }
+    let Ok(output) = Command::new("ps")
+        .args(["-o", "lstart=", "-p", &pid.to_string()])
+        .output()
+    else {
+        return String::new();
+    };
+    if !output.status.success() {
+        return String::new();
+    }
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+fn signal_timed_out_pid(pid: u32, recorded_start: &str) {
+    if pid == 0 {
+        return;
+    }
+    let current = process_start_token(pid);
+    let current_ref = if current.is_empty() {
+        None
+    } else {
+        Some(current.as_str())
+    };
+    if !should_signal_timed_out_pid(recorded_start, current_ref) {
+        return;
+    }
+    let group = format!("-{pid}");
+    let grouped = Command::new("kill")
+        .args(["-9", &group])
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false);
+    if grouped {
+        return;
+    }
+    let _ = Command::new("kill").args(["-9", &pid.to_string()]).status();
+}
+
+fn script_error(context: &str, err: &str, empty_message: &str) -> VcuError {
+    if err.trim().is_empty() {
+        return VcuError::coded(ErrorCode::ActionFailed, empty_message);
+    }
+    if let Some(code) = classify_ax_permission_error(err) {
+        let message = match code {
+            ErrorCode::AutomationDenied => {
+                "macOS Automation permission missing for Apple Events"
+            }
+            ErrorCode::AccessibilityDenied => {
+                "macOS Accessibility permission missing for osascript/System Events"
+            }
+            _ => context,
+        };
+        return VcuError::with_detail(code, message, err);
+    }
+    VcuError::with_detail(ErrorCode::ActionFailed, context, err)
+}
+
+fn run_captured_timeout(
+    program: &str,
+    args: &[&str],
+    timeout_ms: u64,
+    spawn_context: &str,
+    fail_context: &str,
+    empty_message: &str,
+) -> VcuResult<String> {
+    let mut cmd = Command::new(program);
+    cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    let child = cmd.spawn().map_err(|e| {
+        VcuError::with_detail(ErrorCode::Internal, spawn_context, e.to_string())
+    })?;
+    let pid = child.id();
+    // Record identity once. An empty token must not become a later kill.
+    let recorded = process_start_token(pid);
+    let recorded_for_killer = recorded.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(timeout_ms));
+        signal_timed_out_pid(pid, &recorded_for_killer);
+    });
+    let output = child.wait_with_output().map_err(|e| {
+        VcuError::with_detail(ErrorCode::Internal, fail_context, e.to_string())
+    })?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(script_error(fail_context, &err, empty_message));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 fn parse_frame(s: &str) -> Option<[f64; 4]> {
@@ -1221,7 +1324,7 @@ impl AppBackend for MacosAppBackend {
         let timeout = if meta_only { 800 } else { ax_bfs_timeout_ms(&name) };
         let raw = match Self::run_osascript_timeout(&script, timeout) {
             Ok(s) => s,
-            Err(e) if e.code() == ErrorCode::AccessibilityDenied => return Err(e),
+            Err(e) if permission_error_is_terminal(e.code()) => return Err(e),
             Err(e) => {
                 let fallback = Self::run_osascript_timeout(
                     &ax_window_meta_script(&Self::as_literal(&name)),
@@ -1640,11 +1743,21 @@ impl AppBackend for MacosAppBackend {
             .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "window screencapture", e.to_string()))?;
         if !status.success() {
             let _ = std::fs::remove_file(&out);
-            return Err(VcuError::coded(ErrorCode::ActionFailed, "window screenshot failed"));
+            return Err(VcuError::with_detail(
+                ErrorCode::ActionFailed,
+                classify_screenshot_failure(false, false),
+                "screencapture exited non-zero",
+            ));
         }
         let png = std::fs::read(&out).unwrap_or_default();
         let _ = std::fs::remove_file(&out);
-        let (width, height) = super::png_ihdr_size(&png).ok_or_else(|| VcuError::coded(ErrorCode::ActionFailed, "invalid window screenshot PNG"))?;
+        let (width, height) = super::png_ihdr_size(&png).ok_or_else(|| {
+            VcuError::with_detail(
+                ErrorCode::ActionFailed,
+                classify_screenshot_failure(true, false),
+                "png ihdr missing",
+            )
+        })?;
         Ok(Some(AppCapture { png, width, height, frame }))
     }
 
@@ -1867,5 +1980,116 @@ mod tests {
         assert!(dbg.contains("UI elements of window 1"));
         assert!(!dbg.contains("vcuFront"));
 
+    }
+
+    #[test]
+    fn permission_and_screenshot_classes_stay_distinct() {
+        assert_eq!(
+            classify_ax_permission_error("osascript is not allowed assistive access. (-25211)"),
+            Some(ErrorCode::AccessibilityDenied)
+        );
+        assert_eq!(
+            classify_ax_permission_error("System Events got an error: osascript is not allowed assistive access. (1002)"),
+            Some(ErrorCode::AccessibilityDenied)
+        );
+        assert_eq!(
+            classify_ax_permission_error("Not authorized to send Apple events to System Events. (-1743)"),
+            Some(ErrorCode::AutomationDenied)
+        );
+        assert_eq!(
+            classify_ax_permission_error("errAEEventWouldRequireUserConsent (-1744)"),
+            Some(ErrorCode::AutomationDenied)
+        );
+        assert!(classify_ax_permission_error("syntax error").is_none());
+        assert_ne!(
+            ErrorCode::AutomationDenied.default_hint(),
+            ErrorCode::AccessibilityDenied.default_hint()
+        );
+        assert!(ErrorCode::AutomationDenied.default_hint().contains("自动化"));
+        assert!(!ErrorCode::AutomationDenied.default_hint().contains("辅助功能"));
+        assert!(permission_error_is_terminal(ErrorCode::AutomationDenied));
+        assert!(permission_error_is_terminal(ErrorCode::AccessibilityDenied));
+        assert!(!permission_error_is_terminal(ErrorCode::ActionFailed));
+        assert_eq!(classify_screenshot_failure(false, false), "screenshot_capture_failed");
+        assert_eq!(classify_screenshot_failure(true, false), "screenshot_decode_failed");
+        assert_eq!(classify_screenshot_failure(true, true), "screenshot_ok");
+        let src = include_str!("macos.rs");
+        assert!(src.contains("permission_error_is_terminal(e.code())"));
+        assert!(src.contains("if !screen_capture_enabled() {\n            return Ok(None);"));
+    }
+
+    #[test]
+    fn empty_or_mismatched_start_token_must_not_signal() {
+        assert!(!should_signal_timed_out_pid("", Some("Mon Sep 28 12:00:00 2026")));
+        assert!(!should_signal_timed_out_pid("   ", Some("Mon Sep 28 12:00:00 2026")));
+        assert!(!should_signal_timed_out_pid("Mon Sep 28 12:00:00 2026", None));
+        assert!(!should_signal_timed_out_pid("Mon Sep 28 12:00:00 2026", Some("")));
+        assert!(!should_signal_timed_out_pid(
+            "Mon Sep 28 12:00:00 2026",
+            Some("Mon Sep 28 12:00:01 2026")
+        ));
+        assert!(should_signal_timed_out_pid(
+            " Mon Sep 28 12:00:00 2026 ",
+            Some("Mon Sep 28 12:00:00 2026")
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn mismatched_start_token_does_not_kill_live_sleep() {
+        let mut child = Command::new("/bin/sleep").arg("30").spawn().expect("spawn sleep");
+        let pid = child.id();
+        let real = process_start_token(pid);
+        assert!(!real.is_empty(), "ps lstart missing for live sleep");
+        signal_timed_out_pid(pid, "not-the-recorded-start");
+        signal_timed_out_pid(pid, "");
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        match child.try_wait() {
+            Ok(None) => {}
+            other => panic!("sleep was signaled despite a mismatched start token: {other:?}"),
+        }
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_timeout_reaps_unique_sleeper() {
+        let token = format!("vcu-mac001-sleeper-{}", std::process::id());
+        let dir = std::env::temp_dir().join(format!("vcu-mac001-{token}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join(format!("{token}.sh"));
+        std::fs::write(&script, "#!/bin/sh\nexec sleep 30\n").unwrap();
+        let _ = Command::new("chmod").arg("+x").arg(&script).status();
+        let started = std::time::Instant::now();
+        let err = run_captured_timeout(
+            script.to_str().unwrap(),
+            &[],
+            400,
+            "sleeper spawn failed",
+            "sleeper failed",
+            "sleeper timed out",
+        )
+        .expect_err("sleeper must hit the timeout");
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(5),
+            "timeout helper blocked too long: {:?}",
+            started.elapsed()
+        );
+        assert!(
+            err.message().contains("timed out"),
+            "unexpected timeout error: {err:?}"
+        );
+        let listed = Command::new("ps").args(["-ax", "-o", "command="]).output().unwrap();
+        let listed_text = String::from_utf8_lossy(&listed.stdout);
+        let leftovers: Vec<_> = listed_text
+            .lines()
+            .filter(|line| line.contains(&token))
+            .collect();
+        assert!(
+            leftovers.is_empty(),
+            "sleeper still running after timeout: {leftovers:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

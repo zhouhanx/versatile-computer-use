@@ -646,6 +646,13 @@ function run(argv) {
   win.contentView.addSubview(label);
   win.contentView.addSubview(sub);
   win.orderFront(null);
+  try {
+    if (controlPath) {
+      const readyPath = String(controlPath).replace(/\.json$/i, '.ready');
+      const readyText = $.NSString.alloc.initWithUTF8String('1');
+      readyText.writeToFileAtomicallyEncodingError(readyPath, true, $.NSUTF8StringEncoding, null);
+    }
+  } catch (e) {}
 
   const gsize = 48;
   const guide = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer(
@@ -733,6 +740,7 @@ pub struct StageHandle {
     script_path: Option<PathBuf>,
     control_path: Option<PathBuf>,
     abort_path: Option<PathBuf>,
+    ready_path: Option<PathBuf>,
     last_guide: Mutex<Option<GuidePos>>,
     pub shown: bool,
     pub mock: bool,
@@ -747,6 +755,7 @@ impl StageHandle {
             control_path: None,
             abort_path: None,
             last_guide: Mutex::new(None),
+            ready_path: None,
             shown: true,
             mock: true,
             presenter: "noop",
@@ -765,6 +774,27 @@ impl StageHandle {
         let mut s = Self::noop();
         s.abort_path = Some(abort_path);
         s
+    }
+
+    #[cfg(test)]
+    pub fn for_action_gate_test(
+        shown: bool,
+        mock: bool,
+        presenter: &'static str,
+        ready_path: Option<PathBuf>,
+        child: Option<Child>,
+    ) -> Self {
+        Self {
+            child: Mutex::new(child),
+            script_path: None,
+            control_path: None,
+            abort_path: None,
+            ready_path,
+            last_guide: Mutex::new(None),
+            shown,
+            mock,
+            presenter,
+        }
     }
 
     pub fn raise_for_platform(platform: &str) -> VcuResult<Self> {
@@ -852,6 +882,62 @@ impl StageHandle {
         self.abort_path.as_ref().is_some_and(|p| p.is_file())
     }
 
+    pub fn ready_marker_present(&self) -> bool {
+        self.ready_path.as_ref().is_some_and(|path| path.is_file())
+    }
+
+    fn helper_alive(&self) -> bool {
+        let Ok(mut guard) = self.child.lock() else {
+            return false;
+        };
+        let Some(child) = guard.as_mut() else {
+            return false;
+        };
+        matches!(child.try_wait(), Ok(None))
+    }
+
+    /// Desktop actions require a shown, un-aborted HUD.
+    /// macOS native/JXA helpers must also have written the ready marker.
+    /// A process that is merely still alive is not ready.
+    pub fn require_hud_for_action(&self) -> VcuResult<()> {
+        if self.abort_requested() {
+            return Err(VcuError::coded(
+                ErrorCode::SessionClosed,
+                "stage aborted; refusing desktop action",
+            ));
+        }
+        if self.mock {
+            if self.shown {
+                return Ok(());
+            }
+            return Err(VcuError::coded(
+                ErrorCode::StageRequired,
+                "desktop action requires a visible Stage HUD",
+            ));
+        }
+        if !self.shown {
+            return Err(VcuError::coded(
+                ErrorCode::StageRequired,
+                "desktop action requires a visible Stage HUD",
+            ));
+        }
+        if !self.helper_alive() {
+            return Err(VcuError::coded(
+                ErrorCode::StageRequired,
+                "Stage HUD helper is not alive",
+            ));
+        }
+        if self.presenter == "native" || self.presenter == "jxa" {
+            if !self.ready_marker_present() {
+                return Err(VcuError::coded(
+                    ErrorCode::StageRequired,
+                    "Stage HUD is not ready",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub fn write_abort_signal(&self) -> VcuResult<()> {
         let path = self.abort_path.as_ref().ok_or_else(|| {
             VcuError::coded(ErrorCode::Internal, "stage abort path missing")
@@ -883,6 +969,9 @@ impl StageHandle {
             let _ = std::fs::remove_file(path);
         }
         if let Some(path) = self.abort_path.take() {
+            let _ = std::fs::remove_file(path);
+        }
+        if let Some(path) = self.ready_path.take() {
             let _ = std::fs::remove_file(path);
         }
         if !self.mock {
@@ -958,24 +1047,37 @@ fn spawn_logged(bin: &Path, args: &[&str], log_path: &Path) -> std::io::Result<C
         .spawn()
 }
 
-fn child_still_running(child: &mut Child, log_path: &Path) -> bool {
-    std::thread::sleep(std::time::Duration::from_millis(250));
-    match child.try_wait() {
-        Ok(None) => true,
-        Ok(Some(status)) => {
-            let err = std::fs::read_to_string(log_path).unwrap_or_default();
-            let _ = status;
-            let _ = err;
-            false
+const STAGE_READY_WAIT: std::time::Duration = std::time::Duration::from_millis(1200);
+
+fn ready_marker_path(control_path: &Path) -> PathBuf {
+    control_path.with_extension("ready")
+}
+
+fn stop_child(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn wait_stage_ready(child: &mut Child, ready_path: &Path) -> bool {
+    let started = std::time::Instant::now();
+    while started.elapsed() < STAGE_READY_WAIT {
+        if ready_path.is_file() {
+            return matches!(child.try_wait(), Ok(None));
         }
-        Err(_) => false,
+        match child.try_wait() {
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(40)),
+            _ => return false,
+        }
     }
+    false
 }
 
 #[cfg(target_os = "macos")]
 fn try_spawn_native(token: &str, control_path: &Path) -> Option<StageHandle> {
     let bin = resolve_stage_bin()?;
     let log_path = std::env::temp_dir().join(format!("vcu-stage-{token}.log"));
+    let ready_path = ready_marker_path(control_path);
+    let _ = std::fs::remove_file(&ready_path);
     let control = control_path.to_string_lossy();
     let mut child = spawn_logged(
         &bin,
@@ -983,7 +1085,11 @@ fn try_spawn_native(token: &str, control_path: &Path) -> Option<StageHandle> {
         &log_path,
     )
     .ok()?;
-    if !child_still_running(&mut child, &log_path) {
+    if !wait_stage_ready(&mut child, &ready_path) {
+        // An old helper can stay alive without ever writing the ready marker.
+        // Do not act through it; kill it and let the updated JXA fallback run.
+        stop_child(&mut child);
+        let _ = std::fs::remove_file(&ready_path);
         return None;
     }
     Some(StageHandle {
@@ -991,6 +1097,7 @@ fn try_spawn_native(token: &str, control_path: &Path) -> Option<StageHandle> {
         script_path: None,
         control_path: Some(control_path.to_path_buf()),
         abort_path: Some(control_path.with_extension("abort")),
+        ready_path: Some(ready_path),
         last_guide: Mutex::new(None),
         shown: true,
         mock: false,
@@ -1029,21 +1136,28 @@ fn spawn_jxa_fallback(token: &str, control_path: PathBuf) -> VcuResult<StageHand
             e.to_string(),
         )
     })?;
-    if !child_still_running(&mut child, &log_path) {
+    let ready_path = ready_marker_path(&control_path);
+    let _ = std::fs::remove_file(&ready_path);
+    if !wait_stage_ready(&mut child, &ready_path) {
         let err = std::fs::read_to_string(&log_path).unwrap_or_default();
+        let alive = matches!(child.try_wait(), Ok(None));
+        stop_child(&mut child);
         let _ = std::fs::remove_file(&script_path);
         let _ = std::fs::remove_file(&control_path);
-        return Err(VcuError::with_detail(
-            ErrorCode::Internal,
-            "Stage banner process exited",
-            err,
-        ));
+        let _ = std::fs::remove_file(&ready_path);
+        let message = if alive {
+            "Stage HUD helper stayed alive without a ready marker"
+        } else {
+            "Stage banner process exited before ready"
+        };
+        return Err(VcuError::with_detail(ErrorCode::StageRequired, message, err));
     }
     Ok(StageHandle {
         child: Mutex::new(Some(child)),
         script_path: Some(script_path),
         control_path: Some(control_path.clone()),
         abort_path: Some(control_path.with_extension("abort")),
+        ready_path: Some(ready_path),
         last_guide: Mutex::new(None),
         shown: true,
         mock: false,
@@ -1125,6 +1239,7 @@ fn spawn_winforms_hud() -> VcuResult<StageHandle> {
         script_path: Some(script_path),
         control_path: Some(control_path.clone()),
         abort_path: Some(control_path.with_extension("abort")),
+        ready_path: None,
         last_guide: Mutex::new(None),
         shown: true,
         mock: false,
@@ -1195,6 +1310,7 @@ mod tests {
             script_path: None,
             control_path: Some(control),
             abort_path: Some(abort.clone()),
+            ready_path: None,
             last_guide: Mutex::new(None),
             shown: true,
             mock: true,
@@ -1250,6 +1366,53 @@ mod tests {
         assert!(!STAGE_JXA.contains("NSScreen.screens"));
         assert!(!STAGE_JXA.contains("screen.size.width;"));
         assert!(!STAGE_JXA.contains("screen.origin"));
+        let front = STAGE_JXA.find("win.orderFront(null)").expect("orderFront");
+        let ready = STAGE_JXA.find(".ready").expect("ready marker");
+        assert!(front < ready, "JXA must write the ready marker after placing the HUD");
+        let swift = include_str!("../../../helpers/vcu-stage/main.swift");
+        let place = swift.find("func placeHud").expect("placeHud");
+        let marker = swift[place..].find("writeReadyMarker").expect("swift ready marker");
+        assert!(marker > 0);
+    }
+
+    #[test]
+    fn unready_native_hud_rejects_action() {
+        let dir = tempfile::tempdir().unwrap();
+        let ready = dir.path().join("stage.ready");
+        let stage = StageHandle::for_action_gate_test(
+            true,
+            false,
+            "native",
+            Some(ready),
+            None,
+        );
+        let err = stage.require_hud_for_action().unwrap_err();
+        assert_eq!(err.code(), ErrorCode::StageRequired);
+        assert!(err.message().contains("not ready") || err.message().contains("not alive"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ready_live_helper_allows_action_until_exit() {
+        let dir = tempfile::tempdir().unwrap();
+        let ready = dir.path().join("stage.ready");
+        std::fs::write(&ready, b"1").unwrap();
+        let child = std::process::Command::new("/bin/sleep")
+            .arg("30")
+            .spawn()
+            .expect("sleep");
+        let stage = StageHandle::for_action_gate_test(
+            true,
+            false,
+            "native",
+            Some(ready.clone()),
+            Some(child),
+        );
+        assert!(stage.require_hud_for_action().is_ok());
+        let mut dead = StageHandle::for_action_gate_test(true, false, "jxa", Some(ready), None);
+        let err = dead.require_hud_for_action().unwrap_err();
+        assert_eq!(err.code(), ErrorCode::StageRequired);
+        let _ = dead.teardown();
     }
 
     #[test]

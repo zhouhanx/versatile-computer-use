@@ -26,6 +26,7 @@ fn every_error_code_has_hint() {
         ErrorCode::Internal,
         ErrorCode::NotImplemented,
         ErrorCode::AccessibilityDenied,
+        ErrorCode::AutomationDenied,
         ErrorCode::AppDenied,
         ErrorCode::StageRequired,
     ] {

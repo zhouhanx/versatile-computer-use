@@ -686,6 +686,7 @@ fn map_exit(e: &VcuError) -> i32 {
         | ErrorCode::OsCursorDenied
         | ErrorCode::VisionProviderRequired
         | ErrorCode::AccessibilityDenied
+        | ErrorCode::AutomationDenied
         | ErrorCode::AppDenied => 4,
         ErrorCode::SessionNotFound | ErrorCode::TabNotFound | ErrorCode::ModelNotFound => 5,
         _ => 1,
@@ -2374,6 +2375,21 @@ fn uninstall_macos_launch_agent() -> Result<(), VcuError> {
     let plist = home.join("Library/LaunchAgents").join(format!("{label}.plist"));
     let _ = std::fs::remove_file(plist);
     Ok(())
+}
+
+#[cfg(test)]
+mod exit_code_tests {
+    use super::map_exit;
+    use vcu_core::{ErrorCode, VcuError};
+
+    #[test]
+    fn automation_denied_exits_like_accessibility() {
+        let automation = VcuError::coded(ErrorCode::AutomationDenied, "automation");
+        let access = VcuError::coded(ErrorCode::AccessibilityDenied, "accessibility");
+        assert_eq!(map_exit(&automation), 4);
+        assert_eq!(map_exit(&access), 4);
+        assert_ne!(map_exit(&VcuError::coded(ErrorCode::ActionFailed, "action")), 4);
+    }
 }
 
 #[cfg(test)]

@@ -93,6 +93,6 @@ cp scripts/install/install.ps1 dist/install.ps1 2>/dev/null || true
 cp scripts/install/install-lens.ps1 dist/install-lens.ps1 2>/dev/null || true
 echo "Installers: dist/install.sh dist/install.ps1"
 if [[ -f "$STAGE/extension/manifest.json" ]]; then
-  python "$ROOT/scripts/install/package_lens.py" --source "$STAGE/extension" --dest "$ROOT/dist/vcu-lens-extension.zip"
+  python3 "$ROOT/scripts/install/package_lens.py" --source "$STAGE/extension" --dest "$ROOT/dist/vcu-lens-extension.zip"
 fi
 

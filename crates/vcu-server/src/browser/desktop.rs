@@ -180,6 +180,7 @@ impl DesktopBackend {
     }
 
     async fn hover(&mut self, tab_id: &str, target_ref: &str) -> VcuResult<ActionResultDetail> {
+        self.stage.require_hud_for_action()?;
         let _ = self.snapshot(tab_id, SnapshotMode::A11y, 2000).await?;
         let frame = self.frame_for(tab_id, target_ref).await.ok_or_else(|| {
             VcuError::coded(
@@ -220,6 +221,7 @@ impl DesktopBackend {
         pixel_y: f64,
         space: &str,
     ) -> VcuResult<ActionResultDetail> {
+        self.stage.require_hud_for_action()?;
         let _ = self.snapshot(tab_id, SnapshotMode::A11y, 2000).await?;
         let meta = {
             let cached = self
@@ -519,6 +521,7 @@ impl BrowserBackend for DesktopBackend {
     }
 
     async fn click(&mut self, tab_id: &str, target_ref: &str) -> VcuResult<ActionResultDetail> {
+        self.stage.require_hud_for_action()?;
         if Self::settings_like(tab_id) {
             return Err(Self::settings_readonly_err());
         }
@@ -589,6 +592,7 @@ impl BrowserBackend for DesktopBackend {
         text: &str,
         target_ref: Option<&str>,
     ) -> VcuResult<ActionResultDetail> {
+        self.stage.require_hud_for_action()?;
         let r = target_ref.ok_or_else(|| {
             VcuError::coded(ErrorCode::InvalidInput, "desktop type requires target ref")
         })?;
@@ -695,6 +699,7 @@ impl BrowserBackend for DesktopBackend {
 
 
     async fn act(&mut self, tab_id: &str, action: &ActionRequest) -> VcuResult<ActionResultDetail> {
+        self.stage.require_hud_for_action()?;
         match action.r#type.as_str() {
             "click" | "hit" | "press" => {
                 let r = action
@@ -1056,6 +1061,25 @@ mod tests {
         };
         assert_eq!(err.code(), ErrorCode::StageRequired);
         assert!(err.message().contains("Stage banner"));
+    }
+
+    #[tokio::test]
+    async fn desktop_action_rejects_unready_hud() {
+        let dir = tempfile::tempdir().unwrap();
+        let ready = dir.path().join("stage.ready");
+        let app: Arc<RwLock<Box<dyn AppBackend>>> =
+            Arc::new(RwLock::new(Box::new(MockAppBackend::default())));
+        let stage = crate::stage::StageHandle::for_action_gate_test(
+            true,
+            false,
+            "native",
+            Some(ready),
+            None,
+        );
+        let mut backend = DesktopBackend::new_with_stage(app, stage).await.unwrap();
+        let err = backend.click("proc:TextEdit:1", "e1").await.unwrap_err();
+        assert_eq!(err.code(), ErrorCode::StageRequired);
+        assert!(err.message().contains("not ready") || err.message().contains("not alive"));
     }
 
     #[tokio::test]

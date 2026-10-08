@@ -266,6 +266,12 @@ final class StageController: NSObject {
         let y = vis.maxY - hudSize.height - 8
         hud.setFrame(NSRect(x: x, y: y, width: hudSize.width, height: hudSize.height), display: true)
         hud.orderFrontRegardless()
+        writeReadyMarker()
+    }
+
+    func writeReadyMarker() {
+        let ready = controlURL.deletingPathExtension().appendingPathExtension("ready")
+        try? Data("1".utf8).write(to: ready, options: .atomic)
     }
 
     func applyGuide(x: Double, y: Double, visible: Bool) {

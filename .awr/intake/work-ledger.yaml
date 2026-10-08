@@ -1219,12 +1219,12 @@ work_items:
     milestone: m-macos-desktop
     required: true
     priority: P0
-    summary: PLAN-MACOS 第 4 节首项；核对实际 daemon/helper 身份与权限、超时/进程生命周期、HUD readiness 及自建窗口基线，尚未实施。
+    summary: PLAN-MACOS 第 4 节首项。定向测试和脏工作树预检已通过功能项；干净树复跑前不能标完成。PATH 二进制不是这棵工作树。
     acceptance:
       - "报告记录 OS/架构、source SHA 或工作树差异、二进制/daemon 路径及权限诊断"
       - "缺权限/超时/截图失败分类测试通过；不会延迟 kill 已退出或复用 pid；HUD 未就绪拒绝动作"
       - "授权环境下自建 TextEdit 窗观察通过；现有 POC 基线逐项记 pass/fail/未测，权限阻塞不算完成"
-    next_action: 按 docs/PLAN-MACOS.md 准备上下文并领取本项；先记录本机基线，再修实际缺口
+    next_action: 提交后在干净工作树复跑 scripts/poc_mac_001_preflight.py。ok 不为 true 前不标完成，不领取 MAC-002
     evidence: []
     depends_on: []
 

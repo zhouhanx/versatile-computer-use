@@ -41,10 +41,10 @@
 ### MAC-001：权限、构建与基线诊断（P0，ready）
 
 - 目标：区分缺权限、空树、超时、截图失败和版本不匹配，建立本机基线。
-- 落点：`doctor.rs`、`app/macos.rs`、现有 macOS POC；拟新增 `scripts/poc_mac_001_preflight.py`。
+- 落点：`doctor.rs`、`app/macos.rs`、现有 macOS POC；`scripts/poc_mac_001_preflight.py`。
 - 工作：记录 OS/架构、构建 SHA、实际二进制及 daemon 路径、权限诊断、当前窗口观察结果。区分 Accessibility、Screen Recording 及现有 Apple Events 路径涉及的 Automation 问题，核对实际 daemon/helper 身份。检查列窗/截帧起始查询的超时、延时 kill 线程的进程复用风险，以及 helper 活着但 HUD 未就绪的情况。复用 TextEdit/Notes/Finder POC，不重做已证明的功能。
 - 验收：缺权限分支有确定性测试并给出正确 repair hint；有权限时能观察脚本自建 TextEdit 窗；超时有边界且无残留子进程，不对已退出/复用的 pid 延迟发送终止信号；HUD 未就绪不得动作；基线报告逐项标明 pass/fail/未测。真机权限不足时保留阻塞原因，不修改 TCC，不把整项写成完成。
-- 下一步：修复实际基线故障，完成本项后才推进深 AX。
+- 下一步：提交后在干净工作树复跑预检。`ok` 不为 true、或 PATH 二进制被写成这棵工作树的验收，都不得完成本项，也不得推进深 AX。
 
 ### MAC-002：有预算的深 AX Scene（P0，planned）
 
@@ -106,7 +106,7 @@
 
 ## 5. 验证、证据和执行节奏
 
-拟新增脚本是交付物约定，目前尚不存在。实现时先复用仓库已有 POC，避免重复测试设施。每条切片的报告写入 `.local/desktop-cu/mac-<ID>.json`，摘要写入拟新增的 `docs/testing/MACOS_CU_RESULTS.md`。
+`scripts/poc_mac_001_preflight.py` 已运行；后续切片的拟新增脚本仍不存在。实现时先复用仓库已有 POC，避免重复测试设施。每条切片的报告只在 POC 实际运行后写入 `.local/desktop-cu/mac-<ID>.json`，摘要写入 `docs/testing/MACOS_CU_RESULTS.md`。未运行的脚本不是证据。
 
 每份报告至少记录：work ID、真实 source SHA（未提交修改另记 diff 摘要/哈希）、OS/架构/显示器、实际二进制与 daemon、命令、时间、逐条验收结果、source/input_path、截图或读回证据、清理结果。本轮规划文档不能充当未来功能完成报告。
 

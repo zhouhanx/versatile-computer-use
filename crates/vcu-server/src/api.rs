@@ -122,6 +122,7 @@ fn err_response(err: VcuError) -> axum::response::Response {
         | ErrorCode::VisionProviderRequired
         | ErrorCode::DaemonAlreadyRunning
         | ErrorCode::AccessibilityDenied
+        | ErrorCode::AutomationDenied
         | ErrorCode::AppDenied => StatusCode::CONFLICT,
         ErrorCode::InvalidInput => StatusCode::BAD_REQUEST,
         _ => StatusCode::BAD_REQUEST,

@@ -27,6 +27,7 @@ pub enum ErrorCode {
     Internal,
     NotImplemented,
     AccessibilityDenied,
+    AutomationDenied,
     AppDenied,
     StageRequired,
 }
@@ -57,6 +58,7 @@ impl ErrorCode {
             Self::Internal => "See daemon logs; restart daemon if state is corrupt.",
             Self::NotImplemented => "This capability is not in the current MVP build.",
             Self::AccessibilityDenied => "Grant Accessibility once: 系统设置 → 隐私与安全 → 辅助功能, then retry. Do not click Edge Allow debugging for the desktop surface.",
+            Self::AutomationDenied => "Grant Automation once: 系统设置 → 隐私与安全 → 自动化, allow this terminal and vcu-daemon to control System Events. This is not Accessibility and not Edge Allow debugging.",
             Self::AppDenied => "This app is blocked by VCU policy (WeChat/微信) or is outside the desktop allowlist.",
             Self::StageRequired => "desktop session needs a visible Stage HUD. Install/run `vcu-stage`, grant Accessibility, then `vcu session start --surface desktop`. Do not click Edge Allow debugging.",
         }
