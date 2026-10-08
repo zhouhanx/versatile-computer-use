@@ -1232,20 +1232,21 @@ work_items:
 
   - id: MAC-002
     title: macOS 指定窗口与有预算的深 AX Scene
-    status: planned
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-macos-desktop
     required: true
     priority: P0
-    summary: 先建只读 pid/窗口身份，再做子树展开、层级/能力与脱敏；新 Scene 在 MAC-003 通过前不用于 live mutation。
+    summary: a350741 干净 POC ok=true。指定窗口、预算原因、TextEdit/Finder 非空 Scene 已验证。新 Scene 在 MAC-003 通过前不用于 live mutation。
     acceptance:
       - "同 App 双窗口可明确选择；深度超过 14、同级超过 32 子元素的夹具目标可按需展开到达"
       - "节点/深度/超时/输出预算截断原因明确，密码值不进入 Scene 或日志，异常节点不阻塞 daemon"
       - "默认预算和耗时有夹具及 TextEdit/Finder 测量，Scene 可选字段兼容现有 mock/Windows/MCP"
-    next_action: a350741 干净复跑 ok=true。用该 SHA 的完成报告登记，不要领 MAC-003。会话 01M4DJ9FZJA5A39ZS0CBB5V8GA
+    next_action: 已完成。下一开发项是 MAC-003，依赖解锁后领取。不要结束会话 01M4DJ9FZJA5A39ZS0CBB5V8GA
     evidence:
       - "docs/testing/MACOS_CU_RESULTS.md"
+      - "docs/testing/mac-MAC-002-completion.json"
       - ".local/desktop-cu/mac-MAC-002.json"
     depends_on: ["MAC-001"]
 

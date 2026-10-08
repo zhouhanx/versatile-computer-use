@@ -1,8 +1,8 @@
 # 会话交接
 
-## 2026-10-08：MAC-002 干净 SHA 复跑通过
+## 2026-10-08：MAC-002 完成
 
-`a350741e2c875bf70ef0574ee30912d0b7e2e32a` 干净工作树复跑 `scripts/poc_mac_002_scene.py` 返回 `ok=true`，`dirty=false`。TextEdit 29 个元素，Finder 51 个元素，协作式超时 9 个元素。不要领取 `MAC-003` 或 `BR-001`，直到 `awr work complete` 成功。领取会话仍是 `01M4DJ9FZJA5A39ZS0CBB5V8GA`。不要结束旧会话 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+`a350741e2c875bf70ef0574ee30912d0b7e2e32a` 干净工作树复跑 `scripts/poc_mac_002_scene.py` 返回 `ok=true`，`dirty=false`。TextEdit 29 个元素，Finder 51 个元素，协作式超时 9 个元素。证据 `mac-002-scene` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-003` 或 `BR-001`，除非用户明确要求。不要结束会话 `01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
 
 - 只读 Scene 用 CGWindowID 选择窗口，不回退 `window 1`。`nN` 引用拒绝 live mutation。
 - 0 元素外部超时不算 TextEdit 或 Finder 成功。摘要在 `docs/testing/MACOS_CU_RESULTS.md`。
