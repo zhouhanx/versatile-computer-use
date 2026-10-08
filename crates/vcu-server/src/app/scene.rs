@@ -1,5 +1,5 @@
 //! Read-only AX scene identity, budgets, and redaction.
-//! Live mutation must not consume these refs until window binding exists.
+//! `nN` refs stay observation-only. Generation-bound actions live in `binding`.
 
 use serde::{Deserialize, Serialize};
 use vcu_core::{ErrorCode, VcuError, VcuResult};
@@ -213,6 +213,9 @@ pub fn ambiguous_walk(windows: &[WindowPick]) -> SceneWalk {
             parent_ref: None,
             actions: Vec::new(),
             editable: Some(false),
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,
         })
         .collect();
     SceneWalk {
@@ -370,6 +373,7 @@ tell application "System Events"
     set vcuPath to {path}
     set vcuRoot to vcuWin
     set vcuParent to ""
+    set vcuPathText to ""
     set n to 0
     set vcuAcc to ""
     set vcuReason to ""
@@ -406,7 +410,12 @@ tell application "System Events"
           set vcuReason to "node_budget"
           exit repeat
         end if
-        set built to my vcuNodeLine(el, "n" & n, vcuParent)
+        if vcuPathText is "" then
+          set vcuPathText to (vcuI as text)
+        else
+          set vcuPathText to vcuPathText & "/" & (vcuI as text)
+        end if
+        set built to my vcuNodeLine(el, "n" & n, vcuParent, vcuPathText)
         if (length of vcuAcc) + (length of built) > {max_output} then
           set vcuReason to "output_budget"
           exit repeat
@@ -419,6 +428,7 @@ tell application "System Events"
     if vcuReason is not "" then return header & linefeed & vcuAcc & "TRUNC|" & vcuReason
     set vcuFront to {{vcuRoot}}
     set vcuParents to {{vcuParent}}
+    set vcuFrontPaths to {{vcuPathText}}
     set vcuLevel to vcuDepth
     set vcuEmit to true
     if (count of vcuPath) > 0 then set vcuEmit to false
@@ -426,18 +436,20 @@ tell application "System Events"
     repeat while ((count of vcuFront) > 0) and (vcuReason is "")
       set vcuNext to {{}}
       set vcuNextParents to {{}}
+      set vcuNextPaths to {{}}
       set vcuSkipped to false
       repeat with vcuIdx from 1 to (count of vcuFront)
         if vcuReason is not "" then exit repeat
         set el to item vcuIdx of vcuFront
         set parentRef to item vcuIdx of vcuParents
+        set pathText to item vcuIdx of vcuFrontPaths
         if vcuEmit then
           set n to n + 1
           if n > {max_nodes} then
             set vcuReason to "node_budget"
             exit repeat
           end if
-          set built to my vcuNodeLine(el, "n" & n, parentRef)
+          set built to my vcuNodeLine(el, "n" & n, parentRef, pathText)
           if (length of vcuAcc) + (length of built) > {max_output} then
             set vcuReason to "output_budget"
             exit repeat
@@ -471,6 +483,9 @@ tell application "System Events"
               try
                 set end of vcuNext to item kidIdx of kids
                 set end of vcuNextParents to parentRef
+                set kidPath to ((kidIdx - 1) as text)
+                if pathText is not "" then set kidPath to pathText & "/" & kidPath
+                set end of vcuNextPaths to kidPath
               end try
             end repeat
           end try
@@ -480,6 +495,7 @@ tell application "System Events"
       if (vcuSkipped and (vcuReason is "")) then set vcuReason to "depth_budget"
       set vcuFront to vcuNext
       set vcuParents to vcuNextParents
+      set vcuFrontPaths to vcuNextPaths
       set vcuLevel to vcuLevel + 1
     end repeat
     if ((vcuReason is "") and ((count of vcuFront) > 0)) then set vcuReason to "node_budget"
@@ -490,7 +506,7 @@ tell application "System Events"
     return header & linefeed & vcuAcc
   end tell
 end tell
-on vcuNodeLine(el, refText, parentRef)
+on vcuNodeLine(el, refText, parentRef, pathText)
   tell application "System Events"
     set r to ""
     set nm to ""
@@ -559,7 +575,23 @@ on vcuNodeLine(el, refText, parentRef)
       end repeat
     end try
     set my vcuLastRole to r
-    return "NODE|" & refText & "|" & parentRef & "|" & r & "|" & nm & "|" & fr & "|" & editable & "|" & acts & "|" & val
+    set ident to ""
+    try
+      set ident to my vcuClean(value of attribute "AXIdentifier" of el)
+    end try
+    if ident is "" then
+      try
+        set ident to my vcuClean(value of attribute "AXDescription" of el)
+      end try
+    end if
+    if ident is "" then
+      if r contains "Button" or r contains "button" then
+        try
+          set ident to my vcuClean(value of el as text)
+        end try
+      end if
+    end if
+    return "NODE|" & refText & "|" & parentRef & "|" & r & "|" & nm & "|" & fr & "|" & editable & "|" & acts & "|" & val & "|" & pathText & "|" & ident
   end tell
 end vcuNodeLine
 "#,
@@ -681,6 +713,9 @@ pub fn parse_scene_text(raw: &str, budgets: &SceneBudgets) -> VcuResult<SceneWal
                 parent_ref: None,
                 actions: Vec::new(),
                 editable: Some(false),
+                index_path: None,
+                ax_identifier: None,
+                bound_ref: None,
             });
             continue;
         }
@@ -718,7 +753,7 @@ pub fn parse_scene_text(raw: &str, budgets: &SceneBudgets) -> VcuResult<SceneWal
 }
 
 fn parse_node(rest: &str) -> Option<AppElement> {
-    let mut parts = rest.splitn(8, '|');
+    let mut parts = rest.splitn(10, '|');
     let r#ref = parts.next().unwrap_or("").trim();
     let parent = parts.next().unwrap_or("").trim();
     let role = parts.next().unwrap_or("").trim();
@@ -727,6 +762,8 @@ fn parse_node(rest: &str) -> Option<AppElement> {
     let editable = parts.next().unwrap_or("").trim();
     let actions = parts.next().unwrap_or("").trim();
     let value = parts.next().unwrap_or("").trim();
+    let index_path = parts.next().unwrap_or("").trim();
+    let identifier = parts.next().unwrap_or("").trim();
     if r#ref.is_empty() {
         return None;
     }
@@ -755,6 +792,9 @@ fn parse_node(rest: &str) -> Option<AppElement> {
             "0" | "false" => Some(false),
             _ => None,
         },
+        index_path: nonempty(index_path),
+        ax_identifier: nonempty(identifier),
+        bound_ref: None,
     })
 }
 

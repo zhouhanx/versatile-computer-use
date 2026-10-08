@@ -3199,6 +3199,53 @@ async fn snapshot_app_json(state: &AppState, req: &AppSnapshotReq) -> Result<Val
                 });
             }
             if req.pixels {
+                let scene_window = if use_scene {
+                    snap.window_id.as_deref().and_then(|s| s.parse::<u64>().ok()).zip(snap.window_frame)
+                } else {
+                    None
+                };
+                if use_scene {
+                    match scene_window {
+                        Some((wid, frame)) => match backend.capture_bound_window(wid, frame).await {
+                            Ok(Some(cap)) => {
+                                let capture_id = vcu_core::new_id();
+                                let scale = pixel_scale(cap.width, cap.height, cap.frame);
+                                if let Some(token) = crate::app::binding::token_from_elements(&snap.elements) {
+                                    if let Some(scene_id) = snap.scene_id.clone() {
+                                        state.bindings.register_capture(
+                                            &capture_id,
+                                            &scene_id,
+                                            &token,
+                                            wid,
+                                            cap.frame,
+                                            cap.width,
+                                            cap.height,
+                                            scale,
+                                        )?;
+                                        body["capture_id"] = json!(capture_id);
+                                        body["capture_window_id"] = json!(wid.to_string());
+                                        body["capture_scene_id"] = json!(scene_id.clone());
+                                        body["capture_generation"] = json!(scene_id);
+                                        body["capture_frame"] = json!(cap.frame);
+                                        if let Some(scale) = scale {
+                                            body["capture_scale"] = json!(scale);
+                                        }
+                                    }
+                                }
+                                attach_capture(&mut body, &state.paths.captures_dir(), &cap, "");
+                            }
+                            Ok(None) => {
+                                body["screenshot_skipped"] = json!(true);
+                                body["capture_bound"] = json!(false);
+                            }
+                            Err(e) => return Err(e),
+                        },
+                        None => {
+                            body["screenshot_skipped"] = json!(true);
+                            body["capture_unbound"] = json!("scene has no window identity; refusing window-order capture");
+                        }
+                    }
+                } else {
                 match backend.capture_window(&req.id).await {
                     Ok(Some(cap)) => {
                         attach_capture(&mut body, &state.paths.captures_dir(), &cap, "");
@@ -3207,6 +3254,7 @@ async fn snapshot_app_json(state: &AppState, req: &AppSnapshotReq) -> Result<Val
                         body["screenshot_skipped"] = json!(true);
                     }
                     Err(e) => return Err(e),
+                }
                 }
                 if let Some(frame) = webview_crop_frame(
                     snap.elements.as_slice(),
@@ -3790,6 +3838,12 @@ async fn browser_observe(
 struct AppInvokeReq {
     id: String,
     r#ref: String,
+    #[serde(default)]
+    dry_run: bool,
+    #[serde(default)]
+    scene_id: Option<String>,
+    #[serde(default)]
+    capture_id: Option<String>,
 }
 
 async fn app_invoke(
@@ -3804,7 +3858,16 @@ async fn app_invoke(
         return err_response(e);
     }
     let mut backend = state.app_backend.write().await;
-    match backend.invoke(&req.id, &req.r#ref).await {
+    match backend
+        .invoke_observed(
+            &req.id,
+            &req.r#ref,
+            req.dry_run,
+            req.scene_id.as_deref(),
+            req.capture_id.as_deref(),
+        )
+        .await
+    {
         Ok(v) => {
             crate::audit::append(&state.paths, "app.invoke", json!({"id": req.id, "ref": req.r#ref, "ok": true}));
             Json(Envelope::ok(v)).into_response()

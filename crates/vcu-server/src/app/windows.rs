@@ -3488,7 +3488,10 @@ pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
         
             parent_ref: None,
             actions: Vec::new(),
-            editable: None,});
+            editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,});
     }
     out
 }

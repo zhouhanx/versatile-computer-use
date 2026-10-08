@@ -5,12 +5,15 @@ use std::process::{Command, Stdio};
 use async_trait::async_trait;
 use vcu_core::{ErrorCode, VcuError, VcuResult};
 
+use super::binding::{self, ActionReport};
 use super::scene::{self, SceneQuery};
 use super::{denied_app_error, is_denied_app, AppBackend, AppCapture, AppElement, AppSnapshot, AppTarget};
+use std::sync::Arc;
 
 pub struct MacosAppBackend {
     /// Optional allowlist of process names (case-insensitive contains match).
     pub allowlist: Vec<String>,
+    bindings: Arc<binding::SceneBindings>,
 }
 
 impl MacosAppBackend {
@@ -19,6 +22,10 @@ impl MacosAppBackend {
     }
 
     pub fn with_allowlist(extra: Option<Vec<String>>) -> Self {
+        Self::with_bindings(extra, binding::SceneBindings::new())
+    }
+
+    pub fn with_bindings(extra: Option<Vec<String>>, bindings: Arc<binding::SceneBindings>) -> Self {
         let mut allowlist = vec![
             "TextEdit".into(),
             "Notes".into(),
@@ -53,7 +60,7 @@ impl MacosAppBackend {
                 }
             }
         }
-        Self { allowlist }
+        Self { allowlist, bindings }
     }
 
     fn run_osascript(script: &str) -> VcuResult<String> {
@@ -425,7 +432,10 @@ fn parse_ax_snapshot(raw: &str) -> ParsedAxSnapshot {
         
             parent_ref: None,
             actions: Vec::new(),
-            editable: None,});
+            editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,});
     }
     ParsedAxSnapshot {
         window_frame,
@@ -1421,6 +1431,36 @@ fn scene_cg_windows_macos(pid: i32) -> Vec<scene::WindowPick> {
     }
 }
 
+fn bound_result(
+    process: &str,
+    element_ref: &str,
+    prepared: &binding::PreparedAction,
+    dry_run: bool,
+    input_path: &str,
+    role: &str,
+    name: &str,
+    identifier: &str,
+    raw: &str,
+) -> serde_json::Value {
+    serde_json::json!({
+        "ok": true,
+        "process": process,
+        "ref": element_ref,
+        "scene_id": prepared.scene_id,
+        "window_id": prepared.window_id.to_string(),
+        "role": role,
+        "name": name,
+        "identifier": identifier,
+        "result": raw,
+        "input_path": input_path,
+        "dry_run": dry_run,
+        "os_cursor_used": false,
+        "hid_injected": false,
+        "focus_stolen": false,
+        "replayed": false
+    })
+}
+
 fn scene_snapshot(
     id: &str,
     name: &str,
@@ -1467,6 +1507,84 @@ fn scene_snapshot(
     }
 }
 
+
+impl MacosAppBackend {
+    fn act_bound(
+        &self,
+        id: &str,
+        element_ref: &str,
+        dry_run: bool,
+        scene_id: Option<&str>,
+        capture_id: Option<&str>,
+        set_value: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        let name = Self::process_name_from_id(id);
+        self.ensure_operable(&name)?;
+        if let Some(value) = set_value {
+            if uses_menu_paste(&name) && (value.contains('\n') || value.contains('\r')) {
+                return Err(VcuError::coded(
+                    ErrorCode::FocusPolicyViolation,
+                    "Terminal paste refuses newlines; that would execute a command",
+                ));
+            }
+        }
+        let pid = Self::pid_from_id(id).unwrap_or(0);
+        let window_id = self.bindings.window_of(element_ref)?;
+        let live = scene_cg_windows(pid)
+            .into_iter()
+            .find(|win| win.id == window_id)
+            .map(|win| [win.x as f64, win.y as f64, win.width as f64, win.height as f64]);
+        let prepared = self
+            .bindings
+            .prepare_action(id, element_ref, scene_id, capture_id, live)?;
+        let script = binding::ax_bound_action_script(&prepared, dry_run, set_value);
+        let out = Self::run_osascript_timeout(&script, 4000)?;
+        let report = binding::interpret_action(&out)?;
+        match report {
+            ActionReport::Dry { role, name, identifier } if dry_run => Ok(bound_result(
+                &prepared.process,
+                element_ref,
+                &prepared,
+                true,
+                "bound_dry_run",
+                &role,
+                &name,
+                &identifier,
+                &out,
+            )),
+            ActionReport::Pressed { role, name, identifier } if set_value.is_none() && !dry_run => {
+                self.bindings.consume(&prepared.token, capture_id);
+                Ok(bound_result(
+                    &prepared.process,
+                    element_ref,
+                    &prepared,
+                    false,
+                    "bound_ax_press",
+                    &role,
+                    &name,
+                    &identifier,
+                    &out,
+                ))
+            }
+            ActionReport::Set { role, name, identifier } if set_value.is_some() && !dry_run => {
+                self.bindings.consume(&prepared.token, capture_id);
+                Ok(bound_result(
+                    &prepared.process,
+                    element_ref,
+                    &prepared,
+                    false,
+                    "bound_ax_set_value",
+                    &role,
+                    &name,
+                    &identifier,
+                    &out,
+                ))
+            }
+            other => Err(binding::action_error(&other)),
+        }
+    }
+
+}
 
 #[async_trait]
 impl AppBackend for MacosAppBackend {
@@ -1603,7 +1721,10 @@ impl AppBackend for MacosAppBackend {
                         
                             parent_ref: None,
                             actions: Vec::new(),
-                            editable: None,})
+                            editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,})
                         .collect()
                 } else {
                     vec![]
@@ -1637,7 +1758,10 @@ impl AppBackend for MacosAppBackend {
                     
                         parent_ref: None,
                         actions: Vec::new(),
-                        editable: None,});
+                        editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,});
                 }
             }
         }
@@ -1769,10 +1893,11 @@ impl AppBackend for MacosAppBackend {
         let pid = Self::pid_from_id(id).unwrap_or(0);
         let listed = scene_cg_windows(pid);
         let pick = if let Some(want) = query.window_id {
-            listed.into_iter().find(|win| win.id == want).ok_or_else(|| {
-                VcuError::coded(
+            listed.iter().find(|win| win.id == want).cloned().ok_or_else(|| {
+                VcuError::with_detail(
                     ErrorCode::InvalidInput,
                     "window_id was not found; refusing to fall back to window order",
+                    format!("pid={pid} listed={}", listed.iter().map(|w| w.id.to_string()).collect::<Vec<_>>().join(",")),
                 )
             })?
         } else if listed.is_empty() {
@@ -1800,81 +1925,28 @@ impl AppBackend for MacosAppBackend {
                 VcuError::with_detail(ErrorCode::Internal, "scene walk task failed", e.to_string())
             })?;
         let walk = scene::interpret_walk(walked, &budgets)?;
-        Ok(scene_snapshot(id, &name, walk, &budgets))
+        let mut snap = scene_snapshot(id, &name, walk, &budgets);
+        self.bindings.register_scene(&mut snap, id, &pick);
+        Ok(snap)
     }
 
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value> {
-        scene::refuse_live_mutation(element_ref)?;
-        let name = Self::process_name_from_id(id);
-        self.ensure_operable(&name)?;
-        let script = ax_invoke_script(&Self::as_literal(&name), &Self::as_literal(element_ref));
-        let out = Self::run_osascript_timeout(&script, AX_BFS_TIMEOUT_MS)?;
-        if !super::ax_ref_press_succeeded(&out) {
-            return Err(VcuError::with_detail(ErrorCode::ActionFailed, "ax invoke failed", out));
-        }
-        let webview = out.contains("webview");
-        let input_path = if webview { "ax_frame_hit" } else { "ax_press" };
-        Ok(serde_json::json!({
-            "ok": true,
-            "process": name,
-            "ref": element_ref,
-            "result": out,
-            "input_path": input_path,
-            "os_cursor_used": false,
-            "hid_injected": false
-        }))
+        self.invoke_observed(id, element_ref, false, None, None).await
+    }
+
+    async fn invoke_observed(
+        &mut self,
+        id: &str,
+        element_ref: &str,
+        dry_run: bool,
+        scene_id: Option<&str>,
+        capture_id: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        self.act_bound(id, element_ref, dry_run, scene_id, capture_id, None)
     }
 
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
-        scene::refuse_live_mutation(element_ref)?;
-        let name = Self::process_name_from_id(id);
-        self.ensure_operable(&name)?;
-        if uses_menu_paste(&name) {
-            if value.contains('\n') || value.contains('\r') {
-                return Err(VcuError::coded(
-                    ErrorCode::FocusPolicyViolation,
-                    "Terminal paste refuses newlines; that would execute a command",
-                ));
-            }
-            let script = ax_terminal_paste_script(&Self::as_literal(&name), &Self::as_literal(value));
-            let out = Self::run_osascript_timeout(&script, 4000)?;
-            if out.to_ascii_lowercase().starts_with("error:") {
-                return Err(VcuError::with_detail(ErrorCode::ActionFailed, "terminal paste failed", out));
-            }
-            return Ok(serde_json::json!({
-                "ok": true,
-                "process": name,
-                "ref": element_ref,
-                "result": out,
-                "input_path": "ax_menu_paste",
-                "os_cursor_used": false,
-                "hid_injected": false
-            }));
-        }
-        let script = ax_set_value_script(&Self::as_literal(&name), &Self::as_literal(element_ref), &Self::as_literal(value));
-        let mut out = Self::run_osascript_timeout(&script, AX_BFS_TIMEOUT_MS)?;
-        if (out.to_ascii_lowercase().starts_with("error:") || out == "not-found")
-            && name.eq_ignore_ascii_case("TextEdit")
-        {
-            // TextEdit document lives in `text area 1`; toolbar/scroll refs are not editable.
-            let fallback = ax_textedit_document_script(&Self::as_literal(value));
-            if let Ok(alt) = Self::run_osascript_timeout(&fallback, 2500) {
-                if !alt.to_ascii_lowercase().starts_with("error:") && alt != "not-found" {
-                    out = alt;
-                }
-            }
-        }
-        if out.to_ascii_lowercase().starts_with("error:") || out == "not-found" {
-            return Err(VcuError::with_detail(ErrorCode::ActionFailed, "ax set_value failed", out));
-        }
-        Ok(serde_json::json!({
-            "ok": true,
-            "process": name,
-            "ref": element_ref,
-            "result": out,
-            "input_path": "ax_set_value",
-            "os_cursor_used": false
-        }))
+        self.act_bound(id, element_ref, false, None, None, Some(value))
     }
 
     async fn reveal_path(&mut self, id: &str, path: &str) -> VcuResult<serde_json::Value> {
@@ -1909,6 +1981,16 @@ impl AppBackend for MacosAppBackend {
     ) -> VcuResult<serde_json::Value> {
         if let Some(r#ref) = element_ref {
             scene::refuse_live_mutation(r#ref)?;
+            if !binding::is_bound_ref(r#ref) {
+                return Err(VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "ref scroll cannot use window order; observe and pass a generation-bound ref",
+                ));
+            }
+            return Err(VcuError::coded(
+                ErrorCode::InvalidInput,
+                "bound scroll is not routed; refusing to scroll a different window",
+            ));
         }
         let name = Self::process_name_from_id(id);
         self.ensure_operable(&name)?;
@@ -1978,6 +2060,36 @@ impl AppBackend for MacosAppBackend {
             "input_path": "ax_scroll",
             "os_cursor_used": false
         }))
+    }
+
+    async fn capture_bound_window(&self, window_id: u64, frame: [f64; 4]) -> VcuResult<Option<AppCapture>> {
+        if !screen_capture_enabled() || window_id == 0 || frame[2] < 2.0 || frame[3] < 2.0 {
+            return Ok(None);
+        }
+        let out = std::env::temp_dir().join(format!("vcu-window-{}.png", vcu_core::new_id()));
+        let status = std::process::Command::new("screencapture")
+            .args(["-x", "-o", "-l", &window_id.to_string()])
+            .arg(&out)
+            .status()
+            .map_err(|e| VcuError::with_detail(ErrorCode::Internal, "window screencapture", e.to_string()))?;
+        if !status.success() {
+            let _ = std::fs::remove_file(&out);
+            return Err(VcuError::with_detail(
+                ErrorCode::ActionFailed,
+                classify_screenshot_failure(false, false),
+                "screencapture exited non-zero",
+            ));
+        }
+        let png = std::fs::read(&out).unwrap_or_default();
+        let _ = std::fs::remove_file(&out);
+        let (width, height) = super::png_ihdr_size(&png).ok_or_else(|| {
+            VcuError::with_detail(
+                ErrorCode::ActionFailed,
+                classify_screenshot_failure(true, false),
+                "png ihdr missing",
+            )
+        })?;
+        Ok(Some(AppCapture { png, width, height, frame }))
     }
 
     async fn capture_window(&self, id: &str) -> VcuResult<Option<AppCapture>> {

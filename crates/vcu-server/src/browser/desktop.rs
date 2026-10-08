@@ -220,8 +220,24 @@ impl DesktopBackend {
         pixel_x: f64,
         pixel_y: f64,
         space: &str,
+        capture_id: Option<&str>,
     ) -> VcuResult<ActionResultDetail> {
         self.stage.require_hud_for_action()?;
+        if self.app.read().await.platform() == "macos" {
+            let Some(capture_id) = capture_id.filter(|s| !s.is_empty()) else {
+                return Err(VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "pixel click requires a generation-bound capture_id; observe the window again",
+                ));
+            };
+            let app = self.app.read().await;
+            let _ = app.platform();
+            drop(app);
+            return Err(VcuError::coded(
+                ErrorCode::InvalidInput,
+                format!("pixel click capture {capture_id} must be validated by a fresh scene observe; refusing an unbound screenshot"),
+            ));
+        }
         let _ = self.snapshot(tab_id, SnapshotMode::A11y, 2000).await?;
         let meta = {
             let cached = self
@@ -525,6 +541,9 @@ impl BrowserBackend for DesktopBackend {
 
     async fn click(&mut self, tab_id: &str, target_ref: &str) -> VcuResult<ActionResultDetail> {
         self.stage.require_hud_for_action()?;
+        if self.app.read().await.platform() == "macos" {
+            crate::app::binding::require_bound_ref(target_ref)?;
+        }
         if Self::settings_like(tab_id) {
             return Err(Self::settings_readonly_err());
         }
@@ -599,6 +618,9 @@ impl BrowserBackend for DesktopBackend {
         let r = target_ref.ok_or_else(|| {
             VcuError::coded(ErrorCode::InvalidInput, "desktop type requires target ref")
         })?;
+        if self.app.read().await.platform() == "macos" {
+            crate::app::binding::require_bound_ref(r)?;
+        }
         if Self::settings_like(tab_id) {
             return Err(Self::settings_readonly_err());
         }
@@ -740,7 +762,8 @@ impl BrowserBackend for DesktopBackend {
                         .get("space")
                         .and_then(|v| v.as_str())
                         .unwrap_or("window");
-                    self.click_pixels(tab_id, px, py, space).await
+                    let capture_id = action.args.get("capture_id").and_then(|v| v.as_str());
+                    self.click_pixels(tab_id, px, py, space, capture_id).await
                 }
             }
             "type" => {
@@ -755,6 +778,12 @@ impl BrowserBackend for DesktopBackend {
                 self.type_text(tab_id, text, r).await
             }
             "scroll" => {
+                if self.app.read().await.platform() == "macos" {
+                    return Err(VcuError::coded(
+                        ErrorCode::InvalidInput,
+                        "desktop scroll is not generation-bound; refusing window order",
+                    ));
+                }
                 if Self::settings_like(tab_id) {
                     return Err(Self::settings_readonly_err());
                 }

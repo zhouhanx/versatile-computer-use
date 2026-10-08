@@ -1,4 +1,5 @@
 //! Desktop App computer-use adapters.
+pub mod binding;
 pub mod macos;
 pub mod mock_app;
 pub mod scene;
@@ -223,6 +224,15 @@ pub struct AppElement {
     pub actions: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editable: Option<bool>,
+    /// Child-index path from the accessibility window. Empty means the window itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index_path: Option<String>,
+    /// AXIdentifier or description used to reject a replaced control.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ax_identifier: Option<String>,
+    /// Generation-bound action ref. Absent refs are observation-only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bound_ref: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -494,8 +504,28 @@ pub trait AppBackend: Send + Sync {
         self.snapshot(id, budget).await
     }
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value>;
+    /// Generation-checked action. Default ignores binding fields and calls invoke.
+    async fn invoke_observed(
+        &mut self,
+        id: &str,
+        element_ref: &str,
+        dry_run: bool,
+        scene_id: Option<&str>,
+        capture_id: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        let _ = (dry_run, scene_id, capture_id);
+        self.invoke(id, element_ref).await
+    }
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value>;
     async fn capture_window(&self, id: &str) -> VcuResult<Option<AppCapture>>;
+    /// Capture one CG window. Default none. Never prompts for TCC and never uses window order.
+    async fn capture_bound_window(
+        &self,
+        _window_id: u64,
+        _frame: [f64; 4],
+    ) -> VcuResult<Option<AppCapture>> {
+        Ok(None)
+    }
     /// Capture a screen rect (AX frame). Default none. Never prompt for TCC.
     async fn capture_rect(&self, _frame: [f64; 4]) -> VcuResult<Option<AppCapture>> {
         Ok(None)
@@ -595,17 +625,25 @@ pub fn detect_app_backend() -> Box<dyn AppBackend> {
 }
 
 pub fn detect_app_backend_with_allowlist(allowlist: Option<Vec<String>>) -> Box<dyn AppBackend> {
+    detect_app_backend_with_bindings(allowlist, binding::SceneBindings::new())
+}
+
+pub fn detect_app_backend_with_bindings(
+    allowlist: Option<Vec<String>>,
+    bindings: std::sync::Arc<binding::SceneBindings>,
+) -> Box<dyn AppBackend> {
     #[cfg(target_os = "macos")]
     {
-        Box::new(macos::MacosAppBackend::with_allowlist(allowlist))
+        Box::new(macos::MacosAppBackend::with_bindings(allowlist, bindings))
     }
     #[cfg(target_os = "windows")]
     {
-        let _ = allowlist; Box::new(windows::WindowsAppBackend::new())
+        let _ = (allowlist, bindings);
+        Box::new(windows::WindowsAppBackend::new())
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
-        let _ = allowlist;
+        let _ = (allowlist, bindings);
         Box::new(UnsupportedAppBackend {
             platform: "other".into(),
         })
@@ -681,7 +719,10 @@ mod tests {
             
                 parent_ref: None,
                 actions: Vec::new(),
-                editable: None,},
+                editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
             AppElement {
                 r#ref: "e14".into(),
                 role: "AXGroup".into(),
@@ -691,7 +732,10 @@ mod tests {
             
                 parent_ref: None,
                 actions: Vec::new(),
-                editable: None,},
+                editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
             AppElement {
                 r#ref: "e15".into(),
                 role: "AXGroup".into(),
@@ -701,7 +745,10 @@ mod tests {
             
                 parent_ref: None,
                 actions: Vec::new(),
-                editable: None,},
+                editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
         ];
         let (flag, r) = webview_hint(&els);
         assert!(flag);

@@ -126,7 +126,10 @@ impl AppBackend for MockAppBackend {
                 
                     parent_ref: None,
                     actions: Vec::new(),
-                    editable: None,},
+                    editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
                 AppElement {
                     r#ref: "e14".into(),
                     role: "AXGroup".into(),
@@ -136,7 +139,10 @@ impl AppBackend for MockAppBackend {
                 
                     parent_ref: None,
                     actions: Vec::new(),
-                    editable: None,},
+                    editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
                 AppElement {
                     r#ref: "e15".into(),
                     role: "AXGroup".into(),
@@ -146,7 +152,10 @@ impl AppBackend for MockAppBackend {
                 
                     parent_ref: None,
                     actions: Vec::new(),
-                    editable: None,},
+                    editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
                 AppElement {
                     r#ref: "e_send".into(),
                     role: "AXButton".into(),
@@ -156,7 +165,10 @@ impl AppBackend for MockAppBackend {
                 
                     parent_ref: None,
                     actions: Vec::new(),
-                    editable: None,},
+                    editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
             ]
         } else if target.browser_profile.as_deref() == Some("user") {
             vec![
@@ -169,7 +181,10 @@ impl AppBackend for MockAppBackend {
                 
                     parent_ref: None,
                     actions: Vec::new(),
-                    editable: None,},
+                    editable: None,
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
             ]
         } else {
             vec![
@@ -182,7 +197,9 @@ impl AppBackend for MockAppBackend {
                     parent_ref: None,
                     actions: vec!["AXPress".into()],
                     editable: Some(false),
-                },
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
                 AppElement {
                     r#ref: "e2".into(),
                     role: "text".into(),
@@ -192,7 +209,9 @@ impl AppBackend for MockAppBackend {
                     parent_ref: Some("e1".into()),
                     actions: Vec::new(),
                     editable: Some(true),
-                },
+            index_path: None,
+            ax_identifier: None,
+            bound_ref: None,},
             ]
         };
         let (webview, webview_ref) = webview_hint(&elements);
