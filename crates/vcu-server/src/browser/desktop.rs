@@ -447,6 +447,9 @@ impl BrowserBackend for DesktopBackend {
                 value: e.value.clone(),
                 selector: None,
                 frame: e.frame,
+                parent_ref: e.parent_ref.clone(),
+                actions: e.actions.clone(),
+                editable: e.editable,
             })
             .collect();
         let text_excerpt = dom_refs
@@ -905,6 +908,9 @@ fn scene_extract_matches(refs: &[DomRef], selector: &str) -> Vec<serde_json::Val
                 "name": r.name,
                 "value": r.value,
                 "frame": r.frame,
+                "parent_ref": r.parent_ref,
+                "actions": r.actions,
+                "editable": r.editable,
                 "source": "desktop.scene"
             })
         })
@@ -1458,7 +1464,8 @@ mod tests {
             value: None,
             selector: None,
             frame: None,
-        }];
+        
+            ..Default::default()}];
         assert_eq!(scene_wait_match(&refs, Some("e1"), None, None, None).as_deref(), Some("e1"));
         assert_eq!(scene_wait_match(&refs, None, Some("ok"), Some("button"), None).as_deref(), Some("e1"));
         assert!(scene_wait_match(&refs, Some("e9"), None, None, None).is_none());
@@ -1470,7 +1477,8 @@ mod tests {
             value: Some("VCU-D-200-MARK".into()),
             selector: None,
             frame: None,
-        }];
+        
+            ..Default::default()}];
         assert_eq!(
             scene_wait_match(&with_val, None, None, None, Some("VCU-D-200-MARK")).as_deref(),
             Some("e2")
@@ -1484,7 +1492,8 @@ mod tests {
                 value: Some("VCU-SAME".into()),
                 selector: None,
                 frame: None,
-            },
+            
+                ..Default::default()},
             DomRef {
                 r#ref: "e2".into(),
                 role: "ControlType.Button".into(),
@@ -1492,7 +1501,8 @@ mod tests {
                 value: None,
                 selector: None,
                 frame: None,
-            },
+            
+                ..Default::default()},
         ];
         assert_eq!(
             scene_wait_match(&same_name, None, Some("VCU-SAME"), None, None).as_deref(),
@@ -1514,7 +1524,8 @@ mod tests {
             value: None,
             selector: None,
             frame: Some([2218.0, 36.0, 1424.0, 1038.0]),
-        }];
+        
+            ..Default::default()}];
         let hits = scene_extract_matches(&refs, "messenger");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0]["ref"], "e15");

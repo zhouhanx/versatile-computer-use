@@ -107,6 +107,12 @@ async fn mcp_initialize_and_session_tools() {
     assert!(arr.iter().any(|t| t["name"] == "vcu_session_list"));
     let snap_tool = arr.iter().find(|t| t["name"] == "vcu_snapshot").unwrap();
     assert!(snap_tool["inputSchema"]["properties"].get("tab_id").is_some());
+    let app_snap = arr.iter().find(|t| t["name"] == "vcu_app_snapshot").unwrap();
+    let props = &app_snap["inputSchema"]["properties"];
+    for key in ["window_id", "expand", "max_nodes", "max_depth", "timeout_ms", "max_output_bytes"] {
+        assert!(props.get(key).is_some(), "missing {key}");
+    }
+    assert!(app_snap["description"].as_str().unwrap().contains("observation-only"));
     let shot_tool = arr.iter().find(|t| t["name"] == "vcu_screenshot").unwrap();
     assert!(shot_tool["inputSchema"]["properties"].get("tab_id").is_some());
     for name in ["vcu_type", "vcu_scroll", "vcu_wait", "vcu_extract"] {

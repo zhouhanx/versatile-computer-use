@@ -142,6 +142,28 @@ pub struct DomRef {
     pub selector: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frame: Option<[f64; 4]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editable: Option<bool>,
+}
+
+impl Default for DomRef {
+    fn default() -> Self {
+        Self {
+            r#ref: String::new(),
+            role: String::new(),
+            name: String::new(),
+            value: None,
+            selector: None,
+            frame: None,
+            parent_ref: None,
+            actions: Vec::new(),
+            editable: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -191,6 +213,12 @@ pub struct Observation {
     /// ax_scene | extension_dom | mock — never confuse AX chrome with HTML DOM
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncation_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

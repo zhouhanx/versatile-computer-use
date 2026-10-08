@@ -227,7 +227,8 @@ impl BrowserBackend for MockBackend {
                 },
                 selector: Some(format!("{}#{}", n.tag, n.id)),
                 frame: None,
-            })
+            
+                ..Default::default()})
             .collect();
 
         let a11y = format!(

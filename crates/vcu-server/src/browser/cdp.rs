@@ -572,7 +572,8 @@ impl BrowserBackend for CdpBackend {
                         .and_then(|v| v.as_str())
                         .map(|t| format!("{t}[data-vcu-ref]")),
                     frame: None,
-                })
+                
+                    ..Default::default()})
             })
             .collect();
         let mut truncated = false;

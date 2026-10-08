@@ -323,9 +323,20 @@ fn tool_defs() -> Vec<Value> {
             }
         })),
         tool("vcu_app_windows", "List desktop app windows (macOS/Windows adapter)", json!({"type":"object","properties":{}})),
-        tool("vcu_app_snapshot", "Snapshot app UI (AX/UIA). pixels=true attaches a window PNG when Screen Recording is already granted. selector filters Scene without raising Stage HUD.", json!({
+        tool("vcu_app_snapshot", "Read-only app Scene (AX/UIA). Optional window_id selects one window; expand is a child-index path. New scene refs are observation-only. pixels=true attaches a window PNG when Screen Recording is already granted. selector filters Scene without raising Stage HUD.", json!({
             "type":"object","required":["id"],
-            "properties":{"id":{"type":"string"},"budget":{"type":"integer","default":4000},"pixels":{"type":"boolean","default":false},"selector":{"type":"string"}}
+            "properties":{
+                "id":{"type":"string"},
+                "budget":{"type":"integer","default":4000},
+                "pixels":{"type":"boolean","default":false},
+                "selector":{"type":"string"},
+                "window_id":{"type":"integer"},
+                "expand":{"type":"string","description":"Slash-separated child indexes, for example 0/0/1"},
+                "max_nodes":{"type":"integer"},
+                "max_depth":{"type":"integer"},
+                "timeout_ms":{"type":"integer"},
+                "max_output_bytes":{"type":"integer"}
+            }
         })),
         tool("vcu_blackboard", "Read session blackboard for main/sub-agent sharing", json!({
             "type":"object","required":["session"],
@@ -783,9 +794,14 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             let id = req_str(&args, "id")?;
             let budget = args.get("budget").and_then(|v| v.as_u64()).unwrap_or(4000);
             let pixels = args.get("pixels").and_then(|v| v.as_bool()).unwrap_or(false);
-            let mut body = json!({"id": id, "budget": budget, "pixels": pixels});
+            let mut body = json!({"id": id, "budget": budget, "pixels": pixels, "scene": true});
             if let Some(sel) = args.get("selector") {
                 body["selector"] = sel.clone();
+            }
+            for key in ["window_id", "expand", "max_nodes", "max_depth", "timeout_ms", "max_output_bytes"] {
+                if let Some(value) = args.get(key) {
+                    body[key] = value.clone();
+                }
             }
             client
                 .post("/v1/app/snapshot", body)

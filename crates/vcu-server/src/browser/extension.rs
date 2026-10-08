@@ -918,7 +918,8 @@ impl BrowserBackend for ExtensionBackend {
                         .and_then(|x| x.as_str())
                         .map(|s| s.to_string()),
                     frame: None,
-                })
+                
+                    ..Default::default()})
             })
             .collect();
         Ok(SnapshotData {

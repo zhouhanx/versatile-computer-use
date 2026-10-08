@@ -585,6 +585,18 @@ enum AppCmd {
         pixels: bool,
         #[arg(long)]
         selector: Option<String>,
+        #[arg(long)]
+        window_id: Option<u64>,
+        #[arg(long)]
+        expand: Option<String>,
+        #[arg(long)]
+        max_nodes: Option<u32>,
+        #[arg(long)]
+        max_depth: Option<u32>,
+        #[arg(long)]
+        timeout_ms: Option<u64>,
+        #[arg(long)]
+        max_output: Option<u32>,
     },
     Invoke {
         id: String,
@@ -975,10 +987,28 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
             }
-            AppCmd::Snapshot { id, budget, pixels, selector } => {
-                let mut body = json!({"id": id, "budget": budget, "pixels": pixels});
+            AppCmd::Snapshot { id, budget, pixels, selector, window_id, expand, max_nodes, max_depth, timeout_ms, max_output } => {
+                let mut body = json!({"id": id, "budget": budget, "pixels": pixels, "scene": true});
                 if let Some(sel) = selector {
                     body["selector"] = json!(sel);
+                }
+                if let Some(window_id) = window_id {
+                    body["window_id"] = json!(window_id);
+                }
+                if let Some(expand) = expand {
+                    body["expand"] = json!(expand);
+                }
+                if let Some(max_nodes) = max_nodes {
+                    body["max_nodes"] = json!(max_nodes);
+                }
+                if let Some(max_depth) = max_depth {
+                    body["max_depth"] = json!(max_depth);
+                }
+                if let Some(timeout_ms) = timeout_ms {
+                    body["timeout_ms"] = json!(timeout_ms);
+                }
+                if let Some(max_output) = max_output {
+                    body["max_output_bytes"] = json!(max_output);
                 }
                 let v = api_post(
                     &paths,

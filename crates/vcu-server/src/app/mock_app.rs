@@ -123,28 +123,40 @@ impl AppBackend for MockAppBackend {
                     name: "搜索（⌘＋K）".into(),
                     value: None,
                     frame: Some([0.0, 0.0, 163.0, 32.0]),
-                },
+                
+                    parent_ref: None,
+                    actions: Vec::new(),
+                    editable: None,},
                 AppElement {
                     r#ref: "e14".into(),
                     role: "AXGroup".into(),
                     name: "MultiWebView - messenger".into(),
                     value: None,
                     frame: Some([1907.0, 36.0, 305.0, 1038.0]),
-                },
+                
+                    parent_ref: None,
+                    actions: Vec::new(),
+                    editable: None,},
                 AppElement {
                     r#ref: "e15".into(),
                     role: "AXGroup".into(),
                     name: "MultiWebView - messenger:messenger-chat:default".into(),
                     value: None,
                     frame: Some([2218.0, 36.0, 1424.0, 1038.0]),
-                },
+                
+                    parent_ref: None,
+                    actions: Vec::new(),
+                    editable: None,},
                 AppElement {
                     r#ref: "e_send".into(),
                     role: "AXButton".into(),
                     name: "发送".into(),
                     value: None,
                     frame: Some([3500.0, 1000.0, 80.0, 28.0]),
-                },
+                
+                    parent_ref: None,
+                    actions: Vec::new(),
+                    editable: None,},
             ]
         } else if target.browser_profile.as_deref() == Some("user") {
             vec![
@@ -154,7 +166,10 @@ impl AppBackend for MockAppBackend {
                     name: "AXWebArea".into(),
                     value: None,
                     frame: Some([0.0, 80.0, 800.0, 520.0]),
-                },
+                
+                    parent_ref: None,
+                    actions: Vec::new(),
+                    editable: None,},
             ]
         } else {
             vec![
@@ -164,6 +179,9 @@ impl AppBackend for MockAppBackend {
                     name: "OK".into(),
                     value: None,
                     frame: Some([20.0, 20.0, 80.0, 24.0]),
+                    parent_ref: None,
+                    actions: vec!["AXPress".into()],
+                    editable: Some(false),
                 },
                 AppElement {
                     r#ref: "e2".into(),
@@ -171,6 +189,9 @@ impl AppBackend for MockAppBackend {
                     name: "Hello".into(),
                     value: Some("Hello".into()),
                     frame: Some([20.0, 60.0, 240.0, 20.0]),
+                    parent_ref: Some("e1".into()),
+                    actions: Vec::new(),
+                    editable: Some(true),
                 },
             ]
         };
@@ -191,6 +212,9 @@ impl AppBackend for MockAppBackend {
             page_url: None,
             tabs: vec![],
             ax_enhanced: false,
+            window_id: Some("mock-window".into()),
+            scene_id: Some(format!("mock:{}", target.id)),
+            truncation_reason: None,
         })
     }
 

@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use async_trait::async_trait;
 use vcu_core::{ErrorCode, VcuError, VcuResult};
 
+use super::scene::{self, SceneQuery};
 use super::{denied_app_error, is_denied_app, AppBackend, AppCapture, AppElement, AppSnapshot, AppTarget};
 
 pub struct MacosAppBackend {
@@ -421,7 +422,10 @@ fn parse_ax_snapshot(raw: &str) -> ParsedAxSnapshot {
             name: nm.to_string(),
             value: val,
             frame: parse_frame(fr),
-        });
+        
+            parent_ref: None,
+            actions: Vec::new(),
+            editable: None,});
     }
     ParsedAxSnapshot {
         window_frame,
@@ -1252,6 +1256,218 @@ impl Default for MacosAppBackend {
     }
 }
 
+fn scene_cg_windows(pid: i32) -> Vec<scene::WindowPick> {
+    if pid <= 0 {
+        return Vec::new();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        scene_cg_windows_macos(pid)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Vec::new()
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn scene_cg_windows_macos(pid: i32) -> Vec<scene::WindowPick> {
+    use std::ffi::{c_char, c_void, CStr, CString};
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGWindowListCopyWindowInfo(option: u32, relative: u32) -> *mut c_void;
+    }
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFArrayGetCount(array: *const c_void) -> isize;
+        fn CFArrayGetValueAtIndex(array: *const c_void, idx: isize) -> *const c_void;
+        fn CFDictionaryGetValue(dict: *const c_void, key: *const c_void) -> *const c_void;
+        fn CFNumberGetValue(number: *const c_void, the_type: i32, value_ptr: *mut c_void) -> u8;
+        fn CFStringCreateWithCString(
+            alloc: *const c_void,
+            c_str: *const c_char,
+            encoding: u32,
+        ) -> *const c_void;
+        fn CFStringGetCString(
+            the_string: *const c_void,
+            buffer: *mut c_char,
+            buffer_size: isize,
+            encoding: u32,
+        ) -> u8;
+        fn CFRelease(cf: *const c_void);
+        fn CFGetTypeID(cf: *const c_void) -> usize;
+        fn CFStringGetTypeID() -> usize;
+        fn CFNumberGetTypeID() -> usize;
+        fn CFDictionaryGetTypeID() -> usize;
+    }
+
+    const UTF8: u32 = 0x0800_0100;
+    const SINT64: i32 = 4;
+    const DOUBLE: i32 = 13;
+
+    unsafe {
+        let list = CGWindowListCopyWindowInfo(1, 0);
+        if list.is_null() {
+            return Vec::new();
+        }
+        let make_key = |name: &str| {
+            let c = CString::new(name).unwrap_or_else(|_| CString::new("").unwrap());
+            CFStringCreateWithCString(std::ptr::null(), c.as_ptr(), UTF8)
+        };
+        let keys = [
+            make_key("kCGWindowNumber"),
+            make_key("kCGWindowOwnerPID"),
+            make_key("kCGWindowName"),
+            make_key("kCGWindowLayer"),
+            make_key("kCGWindowBounds"),
+            make_key("X"),
+            make_key("Y"),
+            make_key("Width"),
+            make_key("Height"),
+        ];
+        let number_of = |dict: *const c_void, key: *const c_void| -> Option<i64> {
+            if key.is_null() {
+                return None;
+            }
+            let raw = CFDictionaryGetValue(dict, key);
+            if raw.is_null() || CFGetTypeID(raw) != CFNumberGetTypeID() {
+                return None;
+            }
+            let mut value = 0i64;
+            if CFNumberGetValue(raw, SINT64, &mut value as *mut i64 as *mut c_void) == 0 {
+                return None;
+            }
+            Some(value)
+        };
+        let double_of = |dict: *const c_void, key: *const c_void| -> Option<f64> {
+            if key.is_null() {
+                return None;
+            }
+            let raw = CFDictionaryGetValue(dict, key);
+            if raw.is_null() || CFGetTypeID(raw) != CFNumberGetTypeID() {
+                return None;
+            }
+            let mut value = 0f64;
+            if CFNumberGetValue(raw, DOUBLE, &mut value as *mut f64 as *mut c_void) == 0 {
+                return None;
+            }
+            Some(value)
+        };
+        let string_of = |dict: *const c_void, key: *const c_void| -> String {
+            if key.is_null() {
+                return String::new();
+            }
+            let raw = CFDictionaryGetValue(dict, key);
+            if raw.is_null() || CFGetTypeID(raw) != CFStringGetTypeID() {
+                return String::new();
+            }
+            let mut buf = [0u8; 512];
+            if CFStringGetCString(
+                raw,
+                buf.as_mut_ptr() as *mut c_char,
+                buf.len() as isize,
+                UTF8,
+            ) == 0
+            {
+                return String::new();
+            }
+            CStr::from_ptr(buf.as_ptr() as *const c_char)
+                .to_string_lossy()
+                .trim()
+                .to_string()
+        };
+        let mut out = Vec::new();
+        let count = CFArrayGetCount(list);
+        for idx in 0..count {
+            let item = CFArrayGetValueAtIndex(list, idx);
+            if item.is_null() || CFGetTypeID(item) != CFDictionaryGetTypeID() {
+                continue;
+            }
+            let owner = number_of(item, keys[1]).unwrap_or(-1);
+            let layer = number_of(item, keys[3]).unwrap_or(-1);
+            let number = number_of(item, keys[0]).unwrap_or(0);
+            if owner != i64::from(pid) || layer != 0 || number <= 0 {
+                continue;
+            }
+            let bounds = CFDictionaryGetValue(item, keys[4]);
+            if bounds.is_null() || CFGetTypeID(bounds) != CFDictionaryGetTypeID() {
+                continue;
+            }
+            let x = double_of(bounds, keys[5]).unwrap_or(0.0);
+            let y = double_of(bounds, keys[6]).unwrap_or(0.0);
+            let width = double_of(bounds, keys[7]).unwrap_or(0.0);
+            let height = double_of(bounds, keys[8]).unwrap_or(0.0);
+            if width < 20.0 || height < 20.0 {
+                continue;
+            }
+            out.push(scene::WindowPick {
+                id: number as u64,
+                title: string_of(item, keys[2]),
+                x: x.round() as i32,
+                y: y.round() as i32,
+                width: width.round() as i32,
+                height: height.round() as i32,
+            });
+        }
+        out.sort_by_key(|win| win.id);
+        for key in keys {
+            if !key.is_null() {
+                CFRelease(key);
+            }
+        }
+        CFRelease(list);
+        out
+    }
+}
+
+fn scene_snapshot(
+    id: &str,
+    name: &str,
+    walk: scene::SceneWalk,
+    budgets: &scene::SceneBudgets,
+) -> AppSnapshot {
+    let pid = MacosAppBackend::pid_from_id(id);
+    let window_id = walk.window_id.clone();
+    let reason = walk.truncation_reason.clone();
+    let (webview, webview_ref) = super::webview_hint(&walk.elements);
+    let mut summary = scene::scene_summary(
+        name,
+        walk.elements.len(),
+        walk.truncated,
+        reason.as_deref(),
+        window_id.as_deref(),
+    );
+    summary.push_str(&format!(
+        " max_nodes={} max_depth={} timeout_ms={} max_output_bytes={}",
+        budgets.max_nodes, budgets.max_depth, budgets.timeout_ms, budgets.max_output_bytes
+    ));
+    AppSnapshot {
+        target: AppTarget {
+            id: id.to_string(),
+            title: walk.page_title.clone().unwrap_or_else(|| name.to_string()),
+            bundle_or_exe: name.to_string(),
+            pid,
+            allowed: true,
+            browser_profile: crate::login_state::profile_for_pid(name, pid),
+        },
+        summary,
+        elements: walk.elements,
+        truncated: walk.truncated,
+        window_frame: walk.window_frame,
+        webview,
+        webview_ref,
+        page_title: walk.page_title,
+        page_url: None,
+        tabs: vec![],
+        ax_enhanced: false,
+        window_id: window_id.clone(),
+        scene_id: Some(scene::scene_id(pid, window_id.as_deref())),
+        truncation_reason: reason,
+    }
+}
+
+
 #[async_trait]
 impl AppBackend for MacosAppBackend {
     fn platform(&self) -> &str {
@@ -1354,7 +1570,10 @@ impl AppBackend for MacosAppBackend {
                     page_url: parsed.page_url,
                     tabs: parsed.tabs,
                     ax_enhanced: ax_wants_enhanced(&name),
-                });
+                
+                    window_id: None,
+                    scene_id: None,
+                    truncation_reason: None,});
             }
         };
 
@@ -1381,7 +1600,10 @@ impl AppBackend for MacosAppBackend {
                             name: w.title,
                             value: Some(w.window_id.to_string()),
                             frame: Some(w.frame),
-                        })
+                        
+                            parent_ref: None,
+                            actions: Vec::new(),
+                            editable: None,})
                         .collect()
                 } else {
                     vec![]
@@ -1394,7 +1616,10 @@ impl AppBackend for MacosAppBackend {
                 page_url: None,
                 tabs: vec![],
                 ax_enhanced: ax_wants_enhanced(&name),
-            });
+            
+                window_id: None,
+                scene_id: None,
+                truncation_reason: None,});
         }
         let parsed = parse_ax_snapshot(&raw);
         let mut elements = parsed.elements;
@@ -1409,7 +1634,10 @@ impl AppBackend for MacosAppBackend {
                         name: w.title,
                         value: Some(w.window_id.to_string()),
                         frame: Some(w.frame),
-                    });
+                    
+                        parent_ref: None,
+                        actions: Vec::new(),
+                        editable: None,});
                 }
             }
         }
@@ -1447,7 +1675,10 @@ impl AppBackend for MacosAppBackend {
             page_url: parsed.page_url,
             tabs: parsed.tabs,
             ax_enhanced: ax_wants_enhanced(&name),
-        })
+        
+            window_id: None,
+            scene_id: None,
+            truncation_reason: None,})
     }
 
     async fn press_at_point(&mut self, id: &str, x: f64, y: f64) -> VcuResult<serde_json::Value> {
@@ -1525,7 +1756,55 @@ impl AppBackend for MacosAppBackend {
         }))
     }
 
+    async fn snapshot_scene(
+        &self,
+        id: &str,
+        budget: u64,
+        query: &SceneQuery,
+    ) -> VcuResult<AppSnapshot> {
+        let name = Self::process_name_from_id(id);
+        self.ensure_operable(&name)?;
+        let expand = scene::validate_expand(query.expand.as_deref())?;
+        let budgets = scene::budgets_for(query, expand.len(), budget);
+        let pid = Self::pid_from_id(id).unwrap_or(0);
+        let listed = scene_cg_windows(pid);
+        let pick = if let Some(want) = query.window_id {
+            listed.into_iter().find(|win| win.id == want).ok_or_else(|| {
+                VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "window_id was not found; refusing to fall back to window order",
+                )
+            })?
+        } else if listed.is_empty() {
+            return Ok(scene_snapshot(
+                id,
+                &name,
+                scene::limited_walk("no_window"),
+                &budgets,
+            ));
+        } else if listed.len() > 1 {
+            return Ok(scene_snapshot(
+                id,
+                &name,
+                scene::ambiguous_walk(&listed),
+                &budgets,
+            ));
+        } else {
+            listed.into_iter().next().expect("one window")
+        };
+        let script = scene::ax_scene_script(&name, &pick, &expand, &budgets);
+        let timeout = scene::scene_kill_after_ms(budgets.timeout_ms);
+        let walked = tokio::task::spawn_blocking(move || Self::run_osascript_timeout(&script, timeout))
+            .await
+            .map_err(|e| {
+                VcuError::with_detail(ErrorCode::Internal, "scene walk task failed", e.to_string())
+            })?;
+        let walk = scene::interpret_walk(walked, &budgets)?;
+        Ok(scene_snapshot(id, &name, walk, &budgets))
+    }
+
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value> {
+        scene::refuse_live_mutation(element_ref)?;
         let name = Self::process_name_from_id(id);
         self.ensure_operable(&name)?;
         let script = ax_invoke_script(&Self::as_literal(&name), &Self::as_literal(element_ref));
@@ -1547,6 +1826,7 @@ impl AppBackend for MacosAppBackend {
     }
 
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
+        scene::refuse_live_mutation(element_ref)?;
         let name = Self::process_name_from_id(id);
         self.ensure_operable(&name)?;
         if uses_menu_paste(&name) {
@@ -1627,6 +1907,9 @@ impl AppBackend for MacosAppBackend {
         element_ref: Option<&str>,
         dy: i32,
     ) -> VcuResult<serde_json::Value> {
+        if let Some(r#ref) = element_ref {
+            scene::refuse_live_mutation(r#ref)?;
+        }
         let name = Self::process_name_from_id(id);
         self.ensure_operable(&name)?;
         let direction = if dy >= 0 { "AXScrollDownByPage" } else { "AXScrollUpByPage" };

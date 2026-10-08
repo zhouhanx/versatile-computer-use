@@ -1,6 +1,7 @@
 //! Desktop App computer-use adapters.
 pub mod macos;
 pub mod mock_app;
+pub mod scene;
 pub mod windows;
 
 use async_trait::async_trait;
@@ -216,6 +217,12 @@ pub struct AppElement {
     pub value: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frame: Option<[f64; 4]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editable: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -249,6 +256,12 @@ pub struct AppSnapshot {
     /// Chromium/Electron AXEnhancedUserInterface was requested.
     #[serde(default)]
     pub ax_enhanced: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub truncation_reason: Option<String>,
 }
 
 pub fn is_webview_like(role: &str, name: &str) -> bool {
@@ -435,6 +448,9 @@ pub fn extract_elements(elements: &[AppElement], selector: &str) -> Vec<serde_js
                 "name": e.name,
                 "value": e.value,
                 "frame": e.frame,
+                "parent_ref": e.parent_ref,
+                "actions": e.actions,
+                "editable": e.editable,
                 "source": "app.scene"
             })
         })
@@ -467,6 +483,16 @@ pub trait AppBackend: Send + Sync {
     /// Focus is explicit and opt-in; default backends may refuse.
     async fn focus_window(&mut self, id: &str, allow_focus_steal: bool) -> VcuResult<()>;
     async fn snapshot(&self, id: &str, budget: u64) -> VcuResult<AppSnapshot>;
+    /// Read-only scene. Default keeps the legacy snapshot. macOS overrides this.
+    async fn snapshot_scene(
+        &self,
+        id: &str,
+        budget: u64,
+        query: &scene::SceneQuery,
+    ) -> VcuResult<AppSnapshot> {
+        let _ = query;
+        self.snapshot(id, budget).await
+    }
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value>;
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value>;
     async fn capture_window(&self, id: &str) -> VcuResult<Option<AppCapture>>;
@@ -592,6 +618,21 @@ mod tests {
     use vcu_core::ErrorCode;
 
     #[test]
+    fn scene_fields_remain_optional_for_old_json() {
+        let raw = r#"{"target":{"id":"proc:TextEdit:1","title":"TextEdit","bundle_or_exe":"TextEdit"},"summary":"old","elements":[{"ref":"e1","role":"button","name":"OK"}],"truncated":false}"#;
+        let snap: AppSnapshot = serde_json::from_str(raw).unwrap();
+        assert!(snap.window_id.is_none());
+        assert!(snap.scene_id.is_none());
+        assert!(snap.truncation_reason.is_none());
+        assert!(snap.elements[0].parent_ref.is_none());
+        assert!(snap.elements[0].actions.is_empty());
+        assert!(snap.elements[0].editable.is_none());
+        let wire = serde_json::to_value(&snap).unwrap();
+        assert!(wire.get("window_id").is_none());
+        assert!(wire["elements"][0].get("actions").is_none());
+    }
+
+    #[test]
     fn ax_press_errors_are_not_successful_clicks() {
         assert!(ax_position_press_succeeded("ok:ax_position_press:pid:123:axpress:0"));
         for detail in ["ok:ax_position_press:pid:123:axpress:-25206", "ok:ax_position_press:pid:123:axpress:-25204", "", "ok", "error:other-pid:999:Finder"] {
@@ -637,21 +678,30 @@ mod tests {
                 name: "搜索（⌘＋K）".into(),
                 value: None,
                 frame: Some([0.0, 0.0, 163.0, 32.0]),
-            },
+            
+                parent_ref: None,
+                actions: Vec::new(),
+                editable: None,},
             AppElement {
                 r#ref: "e14".into(),
                 role: "AXGroup".into(),
                 name: "MultiWebView - messenger".into(),
                 value: None,
                 frame: Some([1907.0, 36.0, 305.0, 1038.0]),
-            },
+            
+                parent_ref: None,
+                actions: Vec::new(),
+                editable: None,},
             AppElement {
                 r#ref: "e15".into(),
                 role: "AXGroup".into(),
                 name: "MultiWebView - messenger:messenger-chat:default".into(),
                 value: None,
                 frame: Some([2218.0, 36.0, 1424.0, 1038.0]),
-            },
+            
+                parent_ref: None,
+                actions: Vec::new(),
+                editable: None,},
         ];
         let (flag, r) = webview_hint(&els);
         assert!(flag);

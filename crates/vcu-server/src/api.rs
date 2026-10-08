@@ -20,6 +20,7 @@ use vcu_core::{
     VcuError, VisionInfo, VisionPolicy, VcuPaths,
 };
 
+use crate::app::scene::SceneQuery;
 use crate::app::{element_wait_match, extract_elements, json_frame, map_screenshot_pixel, merge_login_latest_page_url, pixel_scale, publish_feishu_latest, publish_login_latest, smallest_ref_at_point, webview_crop_frame, AppCapture, LoginLatestMeta};
 use crate::doctor;
 use crate::state::{create_backend, AppState, SessionSlot};
@@ -2524,6 +2525,9 @@ async fn snapshot(
         login_state,
         browser_profile,
         surface: slot.session.surface,
+        window_id: None,
+        scene_id: None,
+        truncation_reason: None,
         source: Some(if matches!(slot.session.surface, SurfaceKind::Desktop) {
             let plat = state.app_backend.read().await.platform().to_string();
             if plat == "windows" {
@@ -3142,12 +3146,47 @@ struct AppSnapshotReq {
     pixels: bool,
     /// Optional Scene extract without raising Stage HUD.
     selector: Option<String>,
+    #[serde(default)]
+    window_id: Option<u64>,
+    #[serde(default)]
+    expand: Option<String>,
+    #[serde(default)]
+    max_nodes: Option<u32>,
+    #[serde(default)]
+    max_depth: Option<u32>,
+    #[serde(default)]
+    timeout_ms: Option<u64>,
+    #[serde(default)]
+    max_output_bytes: Option<u32>,
+    /// Explicit read-only scene. Browser observe stays on the legacy snapshot.
+    #[serde(default)]
+    scene: bool,
 }
 fn default_app_budget() -> u64 { 4000 }
 
 async fn snapshot_app_json(state: &AppState, req: &AppSnapshotReq) -> Result<Value, VcuError> {
     let backend = state.app_backend.read().await;
-    match backend.snapshot(&req.id, req.budget).await {
+    let use_scene = req.scene
+        || req.window_id.is_some()
+        || req.expand.as_deref().is_some_and(|s| !s.is_empty())
+        || req.max_nodes.is_some()
+        || req.max_depth.is_some()
+        || req.timeout_ms.is_some()
+        || req.max_output_bytes.is_some();
+    let query = SceneQuery {
+        window_id: req.window_id,
+        expand: req.expand.clone(),
+        max_nodes: req.max_nodes,
+        max_depth: req.max_depth,
+        timeout_ms: req.timeout_ms,
+        max_output_bytes: req.max_output_bytes,
+    };
+    let snapped = if use_scene {
+        backend.snapshot_scene(&req.id, req.budget, &query).await
+    } else {
+        backend.snapshot(&req.id, req.budget).await
+    };
+    match snapped {
         Ok(snap) => {
             let mut body = serde_json::to_value(&snap).unwrap_or_else(|_| json!({}));
             if let Some(sel) = req.selector.as_deref() {
@@ -3652,6 +3691,13 @@ async fn browser_observe(
             budget,
             pixels,
             selector: Some(selector),
+            window_id: None,
+            expand: None,
+            max_nodes: None,
+            max_depth: None,
+            timeout_ms: None,
+            max_output_bytes: None,
+            scene: false,
         };
         return match snapshot_app_json(&state, &snap_req).await {
             Ok(snap) => {
@@ -3698,6 +3744,13 @@ async fn browser_observe(
             budget,
             pixels,
             selector: Some(selector.clone()),
+            window_id: None,
+            expand: None,
+            max_nodes: None,
+            max_depth: None,
+            timeout_ms: None,
+            max_output_bytes: None,
+            scene: false,
         };
         match snapshot_app_json(&state, &snap_req).await {
             Ok(body) => {
@@ -3745,6 +3798,9 @@ async fn app_invoke(
     Json(req): Json<AppInvokeReq>,
 ) -> impl IntoResponse {
     if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if let Err(e) = crate::app::scene::refuse_live_mutation(&req.r#ref) {
         return err_response(e);
     }
     let mut backend = state.app_backend.write().await;

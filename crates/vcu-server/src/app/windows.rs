@@ -3485,7 +3485,10 @@ pub fn parse_uia_element_lines(raw: &str) -> Vec<AppElement> {
             name,
             value,
             frame,
-        });
+        
+            parent_ref: None,
+            actions: Vec::new(),
+            editable: None,});
     }
     out
 }
@@ -3512,6 +3515,11 @@ pub fn snapshot_from_uia(
         .map(|e| e.name.clone())
         .filter(|n| !n.is_empty())
         .unwrap_or_else(|| name.to_string());
+    let truncation_reason = if elements.is_empty() {
+        Some("output_budget".into())
+    } else {
+        None
+    };
     AppSnapshot {
         target: AppTarget {
             id: id.to_string(),
@@ -3541,6 +3549,9 @@ pub fn snapshot_from_uia(
         page_url: None,
         tabs: vec![],
         ax_enhanced: false,
+        window_id: None,
+        scene_id: None,
+        truncation_reason,
     }
 }
 
