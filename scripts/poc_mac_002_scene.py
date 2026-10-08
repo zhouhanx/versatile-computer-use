@@ -425,14 +425,45 @@ def main() -> int:
             timeout_ms=8000,
         )
         sib_names = names_of(sib)
+        if sib_code != 200 or "sib-39" not in sib_names:
+            if fixture.poll() is not None:
+                fixture = launch_fixture(report)
+                if fixture is not None:
+                    app_id = f"proc:vcu-ax-fixture:{report['fixture']['pid']}"
+                    windows, _ = window_ids("vcu-ax-fixture", int(report["fixture"]["pid"]))
+                    primary = next((w for w in windows if "FIXTURE" in w["title"]), primary)
+            if primary:
+                sib_elapsed, sib_code, sib = snapshot(
+                    token,
+                    endpoint,
+                    app_id,
+                    window_id=primary["id"],
+                    expand="1",
+                    max_nodes=80,
+                    max_depth=4,
+                    timeout_ms=8000,
+                )
+                sib_names = names_of(sib)
         step(
             report,
             "sibling_expand",
             "pass" if sib_code == 200 and "sib-39" in sib_names else "fail",
             elapsed_s=round(sib_elapsed, 3),
             count=len(sib_names),
+            names=sib_names[:12],
             reason=payload_of(sib).get("truncation_reason"),
         )
+        if fixture is None or fixture.poll() is not None:
+            fixture = launch_fixture(report)
+            if fixture is None:
+                step(report, "node_budget", "fail", detail="fixture exited")
+                return 1
+            app_id = f"proc:vcu-ax-fixture:{report['fixture']['pid']}"
+            windows, _ = window_ids("vcu-ax-fixture", int(report["fixture"]["pid"]))
+            primary = next((w for w in windows if "FIXTURE" in w["title"]), None)
+            if primary is None:
+                step(report, "node_budget", "fail", detail="fixture window missing after relaunch")
+                return 1
         low_elapsed, low_code, low = snapshot(
             token,
             endpoint,

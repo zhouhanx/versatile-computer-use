@@ -85,7 +85,8 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         secret.stringValue = "vcu-secret-should-not-leak"
         secret.placeholderString = "Password"
         let abnormal = AxNode(label: "abnormal-node")
-        let broken = NSAccessibilityElement()
+        let broken = AxNode(label: "broken-child")
+        broken.setAccessibilityRole(NSAccessibility.Role(rawValue: "AXUnknown"))
         broken.setAccessibilityParent(abnormal)
         abnormal.childNodes = [broken]
         let other = AxNode(label: "other-window-marker")
