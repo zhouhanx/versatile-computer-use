@@ -1,15 +1,12 @@
 # 会话交接
 
-## 2026-10-08：MAC-002 实测通过，尚未提交
+## 2026-10-08：MAC-002 代码提交已干净复跑，等待文档提交复跑
 
-`python3 scripts/poc_mac_002_scene.py` 写出 `.local/desktop-cu/mac-MAC-002.json`，`ok=true`。HEAD 仍是 `2aad00b`，工作树是脏的。不要把 MAC-002 标完成，不要领取 `MAC-003` 或 `BR-001`。领取会话仍是 `01M4DJ9FZJA5A39ZS0CBB5V8GA`。不要结束旧会话 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+`ee7dd8a` 干净工作树复跑 `scripts/poc_mac_002_scene.py` 返回 `ok=true`，`dirty=false`。TextEdit 有 29 个元素，Finder 有 49 个元素，协作式超时返回 9 个元素。不要在文档提交复跑前把 MAC-002 标完成，不要领取 `MAC-003` 或 `BR-001`。领取会话仍是 `01M4DJ9FZJA5A39ZS0CBB5V8GA`。不要结束旧会话 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
 
 - 只读 Scene 用 CGWindowID 选择窗口，不回退 `window 1`。`nN` 引用拒绝 live mutation。
-- 夹具双窗口、深度 16 和 40 个同级子元素通过。密码值没有进入响应。
-- TextEdit 默认预算 4.527s 触发 `time_budget`。Finder 临时目录 3.786s，40 元素后 `node_budget`。跑完后 Finder 窗口数和 TextEdit 文档数都是 0。
-- 摘要在 `docs/testing/MACOS_CU_RESULTS.md`。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
-
-下次先读 `docs/PLAN.md`、`docs/PLAN-MACOS.md` 和本段。提交前再复跑 POC，只有干净 SHA 上 `ok=true` 才能 `awr work complete`。
+- 0 元素外部超时不算 TextEdit 或 Finder 成功。摘要在 `docs/testing/MACOS_CU_RESULTS.md`。
+- 没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
 
 
 ## 2026-10-08：MAC-001 完成，下一入口 MAC-002
