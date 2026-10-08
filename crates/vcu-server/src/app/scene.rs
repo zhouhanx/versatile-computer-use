@@ -344,10 +344,10 @@ tell application "System Events"
           if nm is not vcuTitleWant then set titleOk to false
         end if
         if titleOk is true then
-          if dx <= 3 then
-            if dy <= 3 then
-              if dw <= 3 then
-                if dh <= 3 then
+          if dx <= 12 then
+            if dy <= 12 then
+              if dw <= 12 then
+                if dh <= 12 then
                   set vcuHits to vcuHits + 1
                   set vcuWin to w
                 end if
@@ -844,6 +844,8 @@ mod tests {
     fn scene_script_selects_by_id_and_does_not_mutate() {
         let script = ax_scene_script("TextEdit", &sample_pick(), &[0, 1], &budgets());
         assert!(!script.contains("window 1"));
+        assert!(script.contains("dx <= 12"));
+        assert!(!script.contains("dx <= 3"));
         assert!(!script.contains("id of w"));
         assert!(script.contains("vcuKnownId"));
         assert!(script.contains("42"));

@@ -581,23 +581,38 @@ def main() -> int:
             time.sleep(0.6)
             finder = run(["osascript", "-e", 'tell application "System Events" to unix id of process "Finder"'], timeout=10)
             fpid = (finder.stdout or "").strip()
-            f_windows, f_err = window_ids("Finder", int(fpid) if fpid.isdigit() else None)
-            target = next((w for w in f_windows if finder_dir.name in w["title"]), None)
-            if not fpid.isdigit() or target is None:
-                step(report, "finder_timing", "fail", detail="no Finder window id", stderr=f_err, windows=f_windows[:6])
-            else:
+            f_elapsed, f_code, f_body = 0.0, 0, {}
+            target = None
+            f_windows = []
+            f_err = ""
+            for _ in range(4):
+                if not fpid.isdigit():
+                    break
+                f_windows, f_err = window_ids("Finder", int(fpid))
+                target = next((w for w in f_windows if finder_dir.name in w["title"]), None)
+                if target is None:
+                    time.sleep(0.4)
+                    continue
                 f_elapsed, f_code, f_body = snapshot(
                     token,
                     endpoint,
                     f"proc:Finder:{fpid}",
                     window_id=target["id"],
                 )
+                if useful_scene(f_code, f_body):
+                    break
+                time.sleep(0.4)
+            if not fpid.isdigit() or target is None:
+                step(report, "finder_timing", "fail", detail="no Finder window id", stderr=f_err, windows=f_windows[:6])
+            else:
                 step(
                     report,
                     "finder_timing",
                     "pass" if useful_scene(f_code, f_body) else "fail",
                     elapsed_s=round(f_elapsed, 3),
                     title=target["title"],
+                    http=f_code,
+                    error=blob(f_body)[:400],
                     **scene_fields(f_body),
                 )
             closed_ok = False
