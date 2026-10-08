@@ -6,7 +6,7 @@
 
 - 台账状态是 completed。AWR `work complete` 拒绝再次 Complete，因为源状态已经是 completed。证据记录 `mac-001-preflight` 已写入。
 - 现有 TextEdit/Notes/Finder POC 保持 untested。
-- 不要结束或窃取 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。下一开发项是 `MAC-002`，只在 `awr ready` 显示可领后再领。
+- `MAC-002` 已由新会话 `01M4DJ9FZJA5A39ZS0CBB5V8GA` 领取。不要结束旧会话 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。MAC-002 还没实现，不能标完成。
 - 没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
 
 ```sh

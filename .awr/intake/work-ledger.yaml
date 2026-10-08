@@ -1243,7 +1243,7 @@ work_items:
       - "同 App 双窗口可明确选择；深度超过 14、同级超过 32 子元素的夹具目标可按需展开到达"
       - "节点/深度/超时/输出预算截断原因明确，密码值不进入 Scene 或日志，异常节点不阻塞 daemon"
       - "默认预算和耗时有夹具及 TextEdit/Finder 测量，Scene 可选字段兼容现有 mock/Windows/MCP"
-    next_action: MAC-001 完成后实现只读选窗与最小深树夹具 POC，再固化 Scene schema
+    next_action: 已领取，会话 01M4DJ9FZJA5A39ZS0CBB5V8GA。先做只读 pid/窗口身份，不把新 Scene 用于 live mutation
     evidence: []
     depends_on: ["MAC-001"]
 
