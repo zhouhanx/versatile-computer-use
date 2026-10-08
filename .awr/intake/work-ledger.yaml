@@ -1224,7 +1224,7 @@ work_items:
       - "报告记录 OS/架构、source SHA 或工作树差异、二进制/daemon 路径及权限诊断"
       - "缺权限/超时/截图失败分类测试通过；不会延迟 kill 已退出或复用 pid；HUD 未就绪拒绝动作"
       - "授权环境下自建 TextEdit 窗观察通过；现有 POC 基线逐项记 pass/fail/未测，权限阻塞不算完成"
-    next_action: 文档提交后复跑预检；ok=true 才登记 AWR 完成并领取 MAC-002
+    next_action: 745bcb9 复跑 ok=true。下一开发项是 MAC-002，ready 后领取
     evidence:
       - "docs/testing/MACOS_CU_RESULTS.md"
       - ".local/desktop-cu/mac-MAC-001.json"

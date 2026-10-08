@@ -1,12 +1,12 @@
 # 会话交接
 
-## 2026-10-08：MAC-001 干净预检通过，等待文档复跑（当前入口）
+## 2026-10-08：MAC-001 完成，下一入口 MAC-002
 
-`00d2be7` 上 `scripts/poc_mac_001_preflight.py` 返回 `ok=true`。报告在 `.local/desktop-cu/mac-MAC-001.json`。PATH 的 vcu/vcu-daemon/vcu-stage 仍是旧安装，状态 warn，没有覆盖。
+`745bcb9` 干净工作树复跑 `scripts/poc_mac_001_preflight.py` 返回 `ok=true`。绑定 JSON 在 `.local/desktop-cu/mac-MAC-001.json`。代码提交是 `00d2be7`。PATH 二进制仍是旧安装，报告为 warn，没有覆盖。
 
-- 台账已把 `MAC-001` 标为 completed，但 AWR `work complete` 还没做。文档提交后的复跑若不是 `ok=true`，必须撤回完成。
+- 台账状态是 completed。AWR `work complete` 拒绝再次 Complete，因为源状态已经是 completed。证据记录 `mac-001-preflight` 已写入。
 - 现有 TextEdit/Notes/Finder POC 保持 untested。
-- 领取会话仍是 `01M3KKZTFFQTZ3FF0DWWZHP5QV`，不要结束或窃取。复跑通过后再领取 `MAC-002`。
+- 不要结束或窃取 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。下一开发项是 `MAC-002`，只在 `awr ready` 显示可领后再领。
 - 没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
 
 ```sh

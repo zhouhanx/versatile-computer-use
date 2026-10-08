@@ -23,7 +23,7 @@
 - `node --test extension/tests/*.test.cjs`：47 通过。
 - `scripts/poc_mock_flow.sh`、`scripts/poc_actions_extra.sh`、`scripts/poc_login_state.sh`、`scripts/pack-release.sh`、`scripts/poc_install_curl.sh`：通过。
 - `make check` 第一次失败：本机没有监听 `127.0.0.1:17890` 的 daemon，且 `pack-release.sh` 调用了不存在的 `python`。随后用 `target/debug/vcu daemon start` 临时拉起 daemon，跑完 login-state 后已 `daemon stop`。打包脚本改为 `python3`。没有覆盖 `~/.local/bin`。
-- `python3 scripts/poc_mac_001_preflight.py`：在 `00d2be7bf15a75ba0bf002c4613e68e3100ff8fb` 干净工作树上 `ok=true`。Darwin arm64，2 个显示器只计数。TextEdit 标记 `VCU-MAC-001-1791456480-8901`，`scroll-text-area` 命中后 leftover `0`。PATH 三个二进制仍是 warn。
+- `python3 scripts/poc_mac_001_preflight.py`：`00d2be7` 和文档提交 `745bcb9` 的干净工作树都是 `ok=true`。最终绑定 SHA 是 `745bcb9c1429217cefa8199479ba1774bda647cc`。Darwin arm64，2 个显示器只计数。TextEdit 由 `scroll-text-area` 命中，leftover `0`。PATH 三个二进制仍是 warn。
 
 ### 不宣称
 
