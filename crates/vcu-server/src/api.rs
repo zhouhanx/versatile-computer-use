@@ -1986,6 +1986,7 @@ async fn session_start_inner(
     };
     let rev = session.revision;
     let abort_path = backend.abort_watch_path();
+    let helper_pid = backend.stage_helper_pid();
     state.sessions.write().await.insert(
         session_id.clone(),
         SessionSlot {
@@ -1996,25 +1997,51 @@ async fn session_start_inner(
             borrows: Default::default(),
         },
     );
-    if let Some(path) = abort_path {
-        spawn_stage_abort_watch(state.clone(), session_id.clone(), path);
+    if abort_path.is_some() || helper_pid.is_some() {
+        spawn_stage_lifecycle_watch(state.clone(), session_id.clone(), abort_path, helper_pid);
     }
     Ok((session, rev))
 }
 
-fn spawn_stage_abort_watch(state: Arc<AppState>, session_id: String, path: std::path::PathBuf) {
+fn spawn_stage_lifecycle_watch(
+    state: Arc<AppState>,
+    session_id: String,
+    abort_path: Option<std::path::PathBuf>,
+    helper_pid: Option<u32>,
+) {
     tokio::spawn(async move {
+        let mut dead_polls = 0u8;
         loop {
             tokio::time::sleep(Duration::from_millis(50)).await;
-            if path.is_file() {
-                let mut sessions = state.sessions.write().await;
-                if sessions.remove(&session_id).is_some() {
-                    tracing::info!(session_id, "desktop session aborted by Stage Esc");
-                }
-                let _ = fs::remove_file(&path);
+            if !state.sessions.read().await.contains_key(&session_id) {
                 break;
             }
-            if !state.sessions.read().await.contains_key(&session_id) {
+            let aborted = abort_path.as_ref().is_some_and(|path| path.is_file());
+            // kill(pid, 0) still succeeds for a zombie until this daemon reaps it.
+            let helper_dead = {
+                let sessions = state.sessions.read().await;
+                match sessions
+                    .get(&session_id)
+                    .and_then(|slot| slot.backend.stage_helper_running())
+                {
+                    Some(false) => true,
+                    Some(true) => false,
+                    None => helper_pid.is_some_and(|pid| !crate::stage::process_alive(pid)),
+                }
+            };
+            if helper_dead {
+                dead_polls = dead_polls.saturating_add(1);
+            } else {
+                dead_polls = 0;
+            }
+            if aborted || dead_polls >= 2 {
+                let mut sessions = state.sessions.write().await;
+                if sessions.remove(&session_id).is_some() {
+                    tracing::info!(session_id, aborted, helper_dead, "desktop stage lifecycle closed session");
+                }
+                if let Some(path) = &abort_path {
+                    let _ = fs::remove_file(path);
+                }
                 break;
             }
         }
@@ -3852,6 +3879,17 @@ struct AppInvokeReq {
     capture_id: Option<String>,
 }
 
+async fn require_desktop_stage_for_app_mutation(state: &AppState) -> Result<(), VcuError> {
+    let sessions = state.sessions.read().await;
+    for slot in sessions.values() {
+        if slot.session.surface != SurfaceKind::Desktop && slot.session.backend != BackendKind::Desktop {
+            continue;
+        }
+        slot.backend.require_visible_stage()?;
+    }
+    Ok(())
+}
+
 async fn app_invoke(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -3861,6 +3899,9 @@ async fn app_invoke(
         return err_response(e);
     }
     if let Err(e) = crate::app::scene::refuse_live_mutation(&req.r#ref) {
+        return err_response(e);
+    }
+    if let Err(e) = require_desktop_stage_for_app_mutation(&state).await {
         return err_response(e);
     }
     let mut backend = state.app_backend.write().await;
@@ -3922,6 +3963,9 @@ async fn app_set_value(
             "set-value refuses an empty value",
         ));
     }
+    if let Err(e) = require_desktop_stage_for_app_mutation(&state).await {
+        return err_response(e);
+    }
     let mut backend = state.app_backend.write().await;
     match backend
         .set_value_observed(
@@ -3982,6 +4026,9 @@ async fn app_scroll(
         ));
     }
     if let Err(e) = crate::app::scene::refuse_live_mutation(&req.r#ref) {
+        return err_response(e);
+    }
+    if let Err(e) = require_desktop_stage_for_app_mutation(&state).await {
         return err_response(e);
     }
     let mut backend = state.app_backend.write().await;
@@ -4185,6 +4232,9 @@ async fn app_focus(
     if let Err(e) = require_auth(&headers, &state).await {
         return err_response(e);
     }
+    if let Err(e) = require_desktop_stage_for_app_mutation(&state).await {
+        return err_response(e);
+    }
     let mut backend = state.app_backend.write().await;
     match backend.focus_window(&req.id, req.allow_focus_steal).await {
         Ok(()) => Json(Envelope::ok(json!({"focused": req.id}))).into_response(),
@@ -4241,11 +4291,73 @@ mod abort_watch_tests {
                 },
             );
         let abort = dir.path().join("stage.abort");
-        spawn_stage_abort_watch(Arc::new(handle.state.clone()), sid.clone(), abort.clone());
+        spawn_stage_lifecycle_watch(
+            Arc::new(handle.state.clone()),
+            sid.clone(),
+            Some(abort.clone()),
+            None,
+        );
         std::fs::write(&abort, b"1").unwrap();
         tokio::time::sleep(Duration::from_millis(180)).await;
         assert!(handle.state.sessions.read().await.get(&sid).is_none());
         handle.join.abort();
+    }
+
+    fn desktop_slot(sid: &str, backend: MockBackend) -> (String, SessionSlot) {
+        let session = Session {
+            session_id: sid.to_string(),
+            adapter: AdapterKind::Desktop,
+            browser: BrowserKind::Auto,
+            backend: BackendKind::Desktop,
+            surface: SurfaceKind::Desktop,
+            policy: Default::default(),
+            vision_policy: VisionPolicy::DomFirst,
+            created_at: Utc::now(),
+            closed_at: None,
+            revision: 1,
+            active_tab_id: None,
+            agent_window_id: None,
+            active_app_id: Some("proc:fixture:1".into()),
+            stage_hud: Some(true),
+            stage_presenter: Some("native".into()),
+        };
+        (
+            sid.to_string(),
+            SessionSlot {
+                session,
+                backend: Box::new(backend),
+                blackboard: Default::default(),
+                idempotency: Default::default(),
+                borrows: Default::default(),
+            },
+        )
+    }
+
+    #[tokio::test]
+    async fn hidden_desktop_stage_rejects_app_mutation() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::new(VcuPaths::from_root(dir.path()), UserConfig::default());
+        let mut hidden = MockBackend::new();
+        hidden.set_stage_visible(false);
+        let (sid, slot) = desktop_slot("hidden-stage", hidden);
+        state.sessions.write().await.insert(sid, slot);
+        let err = require_desktop_stage_for_app_mutation(&state).await.unwrap_err();
+        assert_eq!(err.code(), ErrorCode::StageRequired);
+
+        state.sessions.write().await.clear();
+        let (sid, slot) = desktop_slot("visible-stage", MockBackend::new());
+        state.sessions.write().await.insert(sid, slot);
+        assert!(require_desktop_stage_for_app_mutation(&state).await.is_ok());
+
+        state.sessions.write().await.clear();
+        let mut browser = MockBackend::new();
+        browser.set_stage_visible(false);
+        let (sid, mut slot) = desktop_slot("browser-only", browser);
+        slot.session.surface = SurfaceKind::BrowserAgent;
+        slot.session.backend = BackendKind::Extension;
+        slot.session.adapter = AdapterKind::Browser;
+        state.sessions.write().await.insert(sid, slot);
+        assert!(require_desktop_stage_for_app_mutation(&state).await.is_ok());
     }
 }
 

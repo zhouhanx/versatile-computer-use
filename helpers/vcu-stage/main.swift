@@ -11,6 +11,25 @@ let hudHeight: CGFloat = 28
 // Keep enough transparent margin for the halo while anchoring the arrow tip
 // itself to the requested AX point.
 let guideSize: CGFloat = 84
+let guideHotspot = NSPoint(x: 32, y: 50)
+
+func primaryDisplay() -> NSScreen {
+    NSScreen.screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.main ?? NSScreen.screens[0]
+}
+
+func cocoaCenter(axX: CGFloat, axY: CGFloat) -> NSPoint {
+    let primary = primaryDisplay()
+    return NSPoint(x: axX, y: primary.frame.maxY - axY)
+}
+
+func guideWindowOrigin(axX: CGFloat, axY: CGFloat) -> NSPoint {
+    let center = cocoaCenter(axX: axX, axY: axY)
+    return NSPoint(x: center.x - guideHotspot.x, y: center.y - guideHotspot.y)
+}
+
+func guideQuartzOrigin(axX: CGFloat, axY: CGFloat) -> NSPoint {
+    NSPoint(x: axX - guideHotspot.x, y: axY - (guideSize - guideHotspot.y))
+}
 
 struct ControlFile: Decodable {
     var stop: Bool?
@@ -66,7 +85,7 @@ final class HudRoot: NSView {
 final class GuideView: NSView {
     // NSView coordinates grow upward. This point is the arrow hotspot and is
     // intentionally not the center of the guide window.
-    static let hotspot = NSPoint(x: 32, y: 50)
+    static let hotspot = guideHotspot
 
     override var isOpaque: Bool { false }
 
@@ -247,17 +266,23 @@ final class StageController: NSObject {
         guide = win
     }
 
-    func primaryScreen() -> NSScreen {
-        NSScreen.screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.main ?? NSScreen.screens[0]
-    }
-
-    func cocoaCenter(axX: CGFloat, axY: CGFloat) -> NSPoint {
-        let primary = primaryScreen()
-        return NSPoint(x: axX, y: primary.frame.maxY - axY)
-    }
-
     func screenContaining(cocoa: NSPoint) -> NSScreen {
-        NSScreen.screens.first(where: { $0.frame.contains(cocoa) }) ?? primaryScreen()
+        NSScreen.screens.first(where: { $0.frame.contains(cocoa) }) ?? primaryDisplay()
+    }
+
+    func visibleURL() -> URL {
+        controlURL.deletingPathExtension().appendingPathExtension("visible")
+    }
+
+    func writeVisibility(hudShown: Bool, guideShown: Bool) {
+        let body = "{\"hud\":\(hudShown),\"guide\":\(guideShown)}\n"
+        let url = visibleURL()
+        let tmp = url.appendingPathExtension("tmp")
+        try? Data(body.utf8).write(to: tmp, options: .atomic)
+        if (try? FileManager.default.replaceItemAt(url, withItemAt: tmp)) == nil,
+           !FileManager.default.fileExists(atPath: url.path) {
+            try? Data(body.utf8).write(to: url, options: .atomic)
+        }
     }
 
     func placeHud(on screen: NSScreen) {
@@ -266,6 +291,7 @@ final class StageController: NSObject {
         let y = vis.maxY - hudSize.height - 8
         hud.setFrame(NSRect(x: x, y: y, width: hudSize.width, height: hudSize.height), display: true)
         hud.orderFrontRegardless()
+        writeVisibility(hudShown: true, guideShown: guide.isVisible)
         writeReadyMarker()
     }
 
@@ -279,20 +305,21 @@ final class StageController: NSObject {
         // `center` is the target point, while the arrow hotspot is offset
         // inside the transparent guide window. Centering the window here
         // would place the arrow tip away from the requested point.
-        let origin = NSPoint(
-            x: center.x - GuideView.hotspot.x,
-            y: center.y - GuideView.hotspot.y
-        )
+        let origin = guideWindowOrigin(axX: CGFloat(x), axY: CGFloat(y))
         guide.setFrameOrigin(origin)
         if hudEnabled {
             placeHud(on: screenContaining(cocoa: center))
         } else {
             hud.orderOut(nil)
+            writeVisibility(hudShown: false, guideShown: visible)
         }
         if visible {
             guide.orderFrontRegardless()
         } else {
             guide.orderOut(nil)
+        }
+        if hudEnabled {
+            writeVisibility(hudShown: true, guideShown: visible)
         }
     }
 
@@ -334,7 +361,12 @@ final class StageController: NSObject {
         }
         if let h = ctl.hud {
             hudEnabled = h
-            if !h { hud.orderOut(nil) }
+            if !h {
+                hud.orderOut(nil)
+                writeVisibility(hudShown: false, guideShown: guide.isVisible)
+            } else if !hud.isVisible {
+                placeHud(on: screenContaining(cocoa: hud.frame.origin))
+            }
         }
         if let g = ctl.guide {
             applyGuide(x: g.x, y: g.y, visible: g.visible ?? true)
@@ -343,6 +375,7 @@ final class StageController: NSObject {
 
     func stop() {
         timer?.invalidate()
+        writeVisibility(hudShown: false, guideShown: false)
         hud.orderOut(nil)
         guide.orderOut(nil)
         NSApp.terminate(nil)
@@ -430,6 +463,47 @@ if CommandLine.arguments.count == 7 && ["--window-id", "--window-info"].contains
         let data = try JSONSerialization.data(withJSONObject: ["window_id": id, "frame": frame])
         print(String(data: data, encoding: .utf8)!)
     }
+    exit(0)
+}
+
+if CommandLine.arguments.count == 2 && CommandLine.arguments[1] == "--screens" {
+    let rows: [[String: Any]] = NSScreen.screens.map { screen in
+        let frame = screen.frame
+        let vis = screen.visibleFrame
+        return [
+            "frame": [frame.origin.x, frame.origin.y, frame.size.width, frame.size.height],
+            "visible": [vis.origin.x, vis.origin.y, vis.size.width, vis.size.height],
+            "scale": screen.backingScaleFactor,
+            "primary": screen.frame.origin == .zero,
+            "max_y": screen.frame.maxY,
+        ]
+    }
+    let data = try JSONSerialization.data(withJSONObject: rows)
+    print(String(data: data, encoding: .utf8)!)
+    exit(0)
+}
+
+if CommandLine.arguments.count == 4 && CommandLine.arguments[1] == "--map-guide" {
+    guard let axX = Double(CommandLine.arguments[2]), let axY = Double(CommandLine.arguments[3]) else {
+        fputs("vcu-stage: --map-guide requires finite AX x y\n", stderr)
+        exit(2)
+    }
+    let primary = primaryDisplay()
+    let cocoa = cocoaCenter(axX: CGFloat(axX), axY: CGFloat(axY))
+    let origin = guideWindowOrigin(axX: CGFloat(axX), axY: CGFloat(axY))
+    let quartz = guideQuartzOrigin(axX: CGFloat(axX), axY: CGFloat(axY))
+    let body: [String: Any] = [
+        "ax": [axX, axY],
+        "cocoa": [Double(cocoa.x), Double(cocoa.y)],
+        "origin": [Double(origin.x), Double(origin.y)],
+        "quartz": [Double(quartz.x), Double(quartz.y)],
+        "hotspot": [Double(guideHotspot.x), Double(guideHotspot.y)],
+        "size": Double(guideSize),
+        "primary_max_y": Double(primary.frame.maxY),
+        "primary_scale": primary.backingScaleFactor,
+    ]
+    let data = try JSONSerialization.data(withJSONObject: body)
+    print(String(data: data, encoding: .utf8)!)
     exit(0)
 }
 

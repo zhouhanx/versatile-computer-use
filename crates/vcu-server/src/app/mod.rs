@@ -71,6 +71,32 @@ pub fn ax_point_from_pixel(
     Some((frame[0] + pixel_x / scale, frame[1] + pixel_y / scale))
 }
 
+pub const GUIDE_HOTSPOT_X: f64 = 32.0;
+pub const GUIDE_HOTSPOT_Y: f64 = 50.0;
+pub const GUIDE_WINDOW_SIZE: f64 = 84.0;
+
+pub fn guide_cocoa_point(ax_x: f64, ax_y: f64, primary_max_y: f64) -> Option<(f64, f64)> {
+    if ![ax_x, ax_y, primary_max_y].iter().all(|v| v.is_finite()) || primary_max_y <= 0.0 {
+        return None;
+    }
+    Some((ax_x, primary_max_y - ax_y))
+}
+
+pub fn guide_window_origin(ax_x: f64, ax_y: f64, primary_max_y: f64) -> Option<(f64, f64)> {
+    let (cx, cy) = guide_cocoa_point(ax_x, ax_y, primary_max_y)?;
+    Some((cx - GUIDE_HOTSPOT_X, cy - GUIDE_HOTSPOT_Y))
+}
+
+pub fn guide_quartz_origin(ax_x: f64, ax_y: f64) -> Option<(f64, f64)> {
+    if !ax_x.is_finite() || !ax_y.is_finite() {
+        return None;
+    }
+    Some((
+        ax_x - GUIDE_HOTSPOT_X,
+        ax_y - (GUIDE_WINDOW_SIZE - GUIDE_HOTSPOT_Y),
+    ))
+}
+
 /// Map screenshot pixels in `window` or `webview` space to AX points.
 /// Typical Edge chrome above the page WebArea (points). Used only when AX
 /// did not report a WebArea frame.
@@ -586,6 +612,9 @@ pub trait AppBackend: Send + Sync {
         let _ = query;
         self.snapshot(id, budget).await
     }
+    fn bound_element_frame(&self, _id: &str, _element_ref: &str) -> Option<[f64; 4]> {
+        None
+    }
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value>;
     /// Generation-checked action. Default ignores binding fields and calls invoke.
     async fn invoke_observed(
@@ -1066,5 +1095,23 @@ mod tests {
         assert!(map_screenshot_pixel(10_000.0, 0.0, "window", Some(win), Some(2.0), Some(wv), Some(2.0)).is_none());
         assert!(ax_point_from_pixel(0.0, 0.0, win, 3.0).is_some());
         assert!(ax_point_from_pixel(0.0, 0.0, win, 4.0).is_none());
+    }
+
+    #[test]
+    fn negative_display_origin_maps_retina_pixels_and_guide() {
+        let left = [-1920.0, 0.0, 1440.0, 900.0];
+        assert_eq!(ax_point_from_pixel(0.0, 0.0, left, 2.0), Some((-1920.0, 0.0)));
+        assert_eq!(ax_point_from_pixel(100.0, 50.0, left, 2.0), Some((-1870.0, 25.0)));
+        assert!(ax_point_from_pixel(-1.0, 0.0, left, 2.0).is_none());
+        let above = [0.0, -800.0, 1200.0, 800.0];
+        assert_eq!(ax_point_from_pixel(0.0, 0.0, above, 2.0), Some((0.0, -800.0)));
+        assert_eq!(
+            guide_quartz_origin(-1870.0, 25.0),
+            Some((-1870.0 - GUIDE_HOTSPOT_X, 25.0 - (GUIDE_WINDOW_SIZE - GUIDE_HOTSPOT_Y)))
+        );
+        assert_eq!(guide_cocoa_point(-1870.0, 25.0, 900.0), Some((-1870.0, 875.0)));
+        assert_eq!(guide_window_origin(-1870.0, 25.0, 900.0), Some((-1902.0, 825.0)));
+        assert!(guide_cocoa_point(1.0, 2.0, 0.0).is_none());
+        assert!(guide_quartz_origin(f64::NAN, 1.0).is_none());
     }
 }

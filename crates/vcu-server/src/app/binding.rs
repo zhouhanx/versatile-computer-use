@@ -26,6 +26,7 @@ pub struct BoundElement {
     pub actions: Vec<String>,
     pub editable: Option<bool>,
     pub value: Option<String>,
+    pub frame: Option<[f64; 4]>,
 }
 
 #[derive(Debug, Clone)]
@@ -145,6 +146,7 @@ impl SceneBindings {
                     actions: el.actions.clone(),
                     editable: el.editable,
                     value: el.value.clone(),
+                    frame: el.frame,
                 },
             );
             bound += 1;
@@ -351,6 +353,16 @@ impl SceneBindings {
                 cap.consumed = true;
             }
         }
+    }
+
+    pub fn element_frame(&self, app_id: &str, element_ref: &str) -> Option<[f64; 4]> {
+        let parsed = parse_bound_ref(element_ref).ok()?;
+        let guard = self.inner.lock().ok()?;
+        let scene = guard.scenes.get(&parsed.token)?;
+        if scene.app_id != app_id {
+            return None;
+        }
+        scene.elements.get(&parsed.local_ref).and_then(|el| el.frame)
     }
 }
 
@@ -1150,6 +1162,12 @@ mod tests {
         assert!(scene.elements[2].bound_ref.is_none());
         assert!(scene.elements[3].bound_ref.is_none());
         assert!(scene.summary.contains("mutation=generation_bound"));
+        let bound = scene.elements[0].bound_ref.as_deref().unwrap();
+        assert_eq!(
+            bindings.element_frame("proc:vcu-ax-binding:9", bound),
+            Some([1.0, 2.0, 3.0, 4.0])
+        );
+        assert!(bindings.element_frame("proc:other:1", bound).is_none());
         let live = Some([10.0, 20.0, 400.0, 300.0]);
         let prepared = bindings
             .prepare_action(
@@ -1219,6 +1237,7 @@ mod tests {
                 actions: vec!["AXPress".into()],
                 editable: Some(false),
                 value: None,
+                frame: Some([4.0, 5.0, 6.0, 7.0]),
             },
             capture_id: None,
         };
@@ -1338,6 +1357,7 @@ mod tests {
                 actions,
                 editable,
                 value: None,
+                frame: None,
             },
             capture_id: None,
         }

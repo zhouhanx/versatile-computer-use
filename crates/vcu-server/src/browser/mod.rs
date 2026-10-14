@@ -31,6 +31,9 @@ pub trait BrowserBackend: Send + Sync {
     fn abort_watch_path(&self) -> Option<std::path::PathBuf> {
         None
     }
+    fn stage_helper_pid(&self) -> Option<u32> {
+        None
+    }
     fn stage_hud(&self) -> Option<(bool, &'static str)> {
         None
     }
@@ -39,6 +42,16 @@ pub trait BrowserBackend: Send + Sync {
             vcu_core::ErrorCode::InvalidInput,
             "Stage abort is only for desktop sessions",
         ))
+    }
+
+    /// App mutations share the desktop session Stage gate. Non-desktop backends allow the call.
+    fn require_visible_stage(&self) -> vcu_core::VcuResult<()> {
+        Ok(())
+    }
+
+    /// `Some(false)` means the helper exited, including a zombie the daemon still owns.
+    fn stage_helper_running(&self) -> Option<bool> {
+        None
     }
 }
 

@@ -30,6 +30,7 @@ struct MockTab {
 pub struct MockBackend {
     tabs: HashMap<String, MockTab>,
     agent_window_id: String,
+    stage_visible: bool,
 }
 
 impl MockBackend {
@@ -82,7 +83,12 @@ impl MockBackend {
         Self {
             tabs,
             agent_window_id: window_id,
+            stage_visible: true,
         }
+    }
+
+    pub fn set_stage_visible(&mut self, visible: bool) {
+        self.stage_visible = visible;
     }
 
     pub fn agent_tab_id(&self) -> VcuResult<String> {
@@ -178,6 +184,16 @@ impl Default for MockBackend {
 impl BrowserBackend for MockBackend {
     fn name(&self) -> &str {
         "mock"
+    }
+
+    fn require_visible_stage(&self) -> VcuResult<()> {
+        if self.stage_visible {
+            return Ok(());
+        }
+        Err(VcuError::coded(
+            ErrorCode::StageRequired,
+            "Stage HUD is not visible",
+        ))
     }
 
     async fn ensure_agent_window(&mut self) -> VcuResult<String> {

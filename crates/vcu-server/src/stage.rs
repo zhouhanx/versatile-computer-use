@@ -646,8 +646,19 @@ function run(argv) {
   win.contentView.addSubview(label);
   win.contentView.addSubview(sub);
   win.orderFront(null);
+  function visiblePath() {
+    if (!controlPath) return null;
+    return String(controlPath).replace(/\.json$/i, '.visible');
+  }
+  function writeVisible(hudShown) {
+    const p = visiblePath();
+    if (!p) return;
+    const text = $.NSString.alloc.initWithUTF8String(hudShown ? '{"hud":true,"guide":false}' : '{"hud":false,"guide":false}');
+    text.writeToFileAtomicallyEncodingError(p, true, $.NSUTF8StringEncoding, null);
+  }
   try {
     if (controlPath) {
+      writeVisible(true);
       const readyPath = String(controlPath).replace(/\.json$/i, '.ready');
       const readyText = $.NSString.alloc.initWithUTF8String('1');
       readyText.writeToFileAtomicallyEncodingError(readyPath, true, $.NSUTF8StringEncoding, null);
@@ -714,8 +725,13 @@ function run(argv) {
       const c = readControl(controlPath);
       if (c) {
         if (c.stop) break;
-        if (c.hud === false) { try { win.orderOut(null); } catch (e) {} }
-        else if (c.hud === true) { try { win.orderFront(null); } catch (e) {} }
+        if (c.hud === false) {
+          try { win.orderOut(null); } catch (e) {}
+          try { writeVisible(false); } catch (e) {}
+        } else if (c.hud === true) {
+          try { win.orderFront(null); } catch (e) {}
+          try { writeVisible(true); } catch (e) {}
+        }
         if (c.guide) {
           applyGuide(Number(c.guide.x) || 0, Number(c.guide.y) || 0, c.guide.visible !== false);
         }
@@ -741,6 +757,8 @@ pub struct StageHandle {
     control_path: Option<PathBuf>,
     abort_path: Option<PathBuf>,
     ready_path: Option<PathBuf>,
+    visible_path: Option<PathBuf>,
+    owner_path: Option<PathBuf>,
     last_guide: Mutex<Option<GuidePos>>,
     pub shown: bool,
     pub mock: bool,
@@ -754,8 +772,10 @@ impl StageHandle {
             script_path: None,
             control_path: None,
             abort_path: None,
-            last_guide: Mutex::new(None),
             ready_path: None,
+            visible_path: None,
+            owner_path: None,
+            last_guide: Mutex::new(None),
             shown: true,
             mock: true,
             presenter: "noop",
@@ -789,7 +809,9 @@ impl StageHandle {
             script_path: None,
             control_path: None,
             abort_path: None,
-            ready_path,
+            ready_path: ready_path.clone(),
+            visible_path: ready_path.map(|path| path.with_extension("visible")),
+            owner_path: None,
             last_guide: Mutex::new(None),
             shown,
             mock,
@@ -886,6 +908,17 @@ impl StageHandle {
         self.ready_path.as_ref().is_some_and(|path| path.is_file())
     }
 
+    pub fn helper_pid(&self) -> Option<u32> {
+        let Ok(guard) = self.child.lock() else {
+            return None;
+        };
+        guard.as_ref().map(|child| child.id())
+    }
+
+    pub fn helper_running(&self) -> bool {
+        self.helper_alive()
+    }
+
     fn helper_alive(&self) -> bool {
         let Ok(mut guard) = self.child.lock() else {
             return false;
@@ -896,14 +929,46 @@ impl StageHandle {
         matches!(child.try_wait(), Ok(None))
     }
 
-    /// Desktop actions require a shown, un-aborted HUD.
-    /// macOS native/JXA helpers must also have written the ready marker.
-    /// A process that is merely still alive is not ready.
+    fn control_hides_hud(&self) -> bool {
+        let Some(path) = &self.control_path else {
+            return false;
+        };
+        let Ok(raw) = std::fs::read_to_string(path) else {
+            return false;
+        };
+        serde_json::from_str::<serde_json::Value>(&raw)
+            .ok()
+            .and_then(|v| v.get("hud").and_then(|h| h.as_bool()))
+            == Some(false)
+    }
+
+    fn visible_hud(&self) -> bool {
+        let Some(path) = &self.visible_path else {
+            return false;
+        };
+        let Ok(raw) = std::fs::read(path) else {
+            return false;
+        };
+        serde_json::from_slice::<serde_json::Value>(&raw)
+            .ok()
+            .and_then(|v| v.get("hud").and_then(|h| h.as_bool()))
+            == Some(true)
+    }
+
+    /// Desktop actions require a shown, un-aborted, currently visible HUD.
+    /// A ready marker or a live process is not enough after the helper hides
+    /// the capsule or exits.
     pub fn require_hud_for_action(&self) -> VcuResult<()> {
         if self.abort_requested() {
             return Err(VcuError::coded(
                 ErrorCode::SessionClosed,
                 "stage aborted; refusing desktop action",
+            ));
+        }
+        if self.control_hides_hud() {
+            return Err(VcuError::coded(
+                ErrorCode::StageRequired,
+                "Stage HUD is not visible",
             ));
         }
         if self.mock {
@@ -932,6 +997,12 @@ impl StageHandle {
                 return Err(VcuError::coded(
                     ErrorCode::StageRequired,
                     "Stage HUD is not ready",
+                ));
+            }
+            if !self.visible_hud() {
+                return Err(VcuError::coded(
+                    ErrorCode::StageRequired,
+                    "Stage HUD is not visible",
                 ));
             }
         }
@@ -972,6 +1043,12 @@ impl StageHandle {
             let _ = std::fs::remove_file(path);
         }
         if let Some(path) = self.ready_path.take() {
+            let _ = std::fs::remove_file(path);
+        }
+        if let Some(path) = self.visible_path.take() {
+            let _ = std::fs::remove_file(path);
+        }
+        if let Some(path) = self.owner_path.take() {
             let _ = std::fs::remove_file(path);
         }
         if !self.mock {
@@ -1053,6 +1130,98 @@ fn ready_marker_path(control_path: &Path) -> PathBuf {
     control_path.with_extension("ready")
 }
 
+fn visible_marker_path(control_path: &Path) -> PathBuf {
+    control_path.with_extension("visible")
+}
+
+fn write_stage_owner(control_path: &Path, helper_pid: u32) -> PathBuf {
+    let path = control_path.with_extension("owner");
+    let body = serde_json::json!({
+        "daemon_pid": std::process::id(),
+        "helper_pid": helper_pid
+    });
+    let _ = std::fs::write(&path, body.to_string());
+    path
+}
+
+pub fn process_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        extern "C" {
+            fn kill(pid: i32, sig: i32) -> i32;
+        }
+        unsafe { kill(pid as i32, 0) == 0 }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = pid;
+        false
+    }
+}
+
+fn signal_kill(pid: u32) {
+    if pid == 0 || pid == std::process::id() {
+        return;
+    }
+    #[cfg(unix)]
+    {
+        extern "C" {
+            fn kill(pid: i32, sig: i32) -> i32;
+        }
+        unsafe {
+            let _ = kill(pid as i32, 9);
+        }
+    }
+}
+
+pub fn sweep_orphan_stage_helpers() -> usize {
+    let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
+        return 0;
+    };
+    let mut cleaned = 0usize;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !name.starts_with("vcu-stage-") || !name.ends_with(".owner") {
+            continue;
+        }
+        let Ok(raw) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) else {
+            continue;
+        };
+        let daemon_pid = v.get("daemon_pid").and_then(|n| n.as_u64()).unwrap_or(0) as u32;
+        let helper_pid = v.get("helper_pid").and_then(|n| n.as_u64()).unwrap_or(0) as u32;
+        if daemon_pid == 0 || daemon_pid == std::process::id() || process_alive(daemon_pid) {
+            continue;
+        }
+        if helper_pid != 0 && helper_pid != std::process::id() && process_alive(helper_pid) {
+            signal_kill(helper_pid);
+        }
+        let stem = path.with_extension("");
+        for ext in [
+            "owner", "json", "ready", "abort", "visible", "log", "jxa", "ps1", "abort.tmp",
+            "visible.tmp", "json.tmp",
+        ] {
+            let _ = std::fs::remove_file(stem.with_extension(ext));
+        }
+        cleaned += 1;
+    }
+    cleaned
+}
+
+pub fn write_daemon_epoch(dir: &Path) -> String {
+    let epoch = ulid::Ulid::new().to_string();
+    let _ = std::fs::write(dir.join("stage-epoch"), &epoch);
+    epoch
+}
+
 fn stop_child(child: &mut Child) {
     let _ = child.kill();
     let _ = child.wait();
@@ -1092,12 +1261,15 @@ fn try_spawn_native(token: &str, control_path: &Path) -> Option<StageHandle> {
         let _ = std::fs::remove_file(&ready_path);
         return None;
     }
+    let helper_pid = child.id();
     Some(StageHandle {
         child: Mutex::new(Some(child)),
         script_path: None,
         control_path: Some(control_path.to_path_buf()),
         abort_path: Some(control_path.with_extension("abort")),
-        ready_path: Some(ready_path),
+        ready_path: Some(ready_path.clone()),
+        visible_path: Some(visible_marker_path(control_path)),
+        owner_path: Some(write_stage_owner(control_path, helper_pid)),
         last_guide: Mutex::new(None),
         shown: true,
         mock: false,
@@ -1152,12 +1324,15 @@ fn spawn_jxa_fallback(token: &str, control_path: PathBuf) -> VcuResult<StageHand
         };
         return Err(VcuError::with_detail(ErrorCode::StageRequired, message, err));
     }
+    let helper_pid = child.id();
     Ok(StageHandle {
         child: Mutex::new(Some(child)),
         script_path: Some(script_path),
         control_path: Some(control_path.clone()),
         abort_path: Some(control_path.with_extension("abort")),
         ready_path: Some(ready_path),
+        visible_path: Some(visible_marker_path(&control_path)),
+        owner_path: Some(write_stage_owner(&control_path, helper_pid)),
         last_guide: Mutex::new(None),
         shown: true,
         mock: false,
@@ -1234,12 +1409,15 @@ fn spawn_winforms_hud() -> VcuResult<StageHandle> {
             ));
         }
     }
+    let helper_pid = child.id();
     Ok(StageHandle {
         child: Mutex::new(Some(child)),
         script_path: Some(script_path),
         control_path: Some(control_path.clone()),
         abort_path: Some(control_path.with_extension("abort")),
         ready_path: None,
+        visible_path: None,
+        owner_path: Some(write_stage_owner(&control_path, helper_pid)),
         last_guide: Mutex::new(None),
         shown: true,
         mock: false,
@@ -1311,6 +1489,8 @@ mod tests {
             control_path: Some(control),
             abort_path: Some(abort.clone()),
             ready_path: None,
+            visible_path: None,
+            owner_path: None,
             last_guide: Mutex::new(None),
             shown: true,
             mock: true,
@@ -1368,11 +1548,16 @@ mod tests {
         assert!(!STAGE_JXA.contains("screen.origin"));
         let front = STAGE_JXA.find("win.orderFront(null)").expect("orderFront");
         let ready = STAGE_JXA.find(".ready").expect("ready marker");
-        assert!(front < ready, "JXA must write the ready marker after placing the HUD");
+        let visible = STAGE_JXA.find(".visible'").expect("visible marker");
+        assert!(front < visible && visible < ready, "JXA must publish visibility before ready");
         let swift = include_str!("../../../helpers/vcu-stage/main.swift");
         let place = swift.find("func placeHud").expect("placeHud");
         let marker = swift[place..].find("writeReadyMarker").expect("swift ready marker");
         assert!(marker > 0);
+        assert!(swift.contains("writeVisibility"));
+        assert!(swift.contains("--map-guide"));
+        assert!(swift.contains("guideQuartzOrigin"));
+        assert!(swift.contains("keyCode == 53"));
     }
 
     #[test]
@@ -1396,7 +1581,9 @@ mod tests {
     fn ready_live_helper_allows_action_until_exit() {
         let dir = tempfile::tempdir().unwrap();
         let ready = dir.path().join("stage.ready");
+        let visible = dir.path().join("stage.visible");
         std::fs::write(&ready, b"1").unwrap();
+        std::fs::write(&visible, br#"{"hud":true,"guide":false}"#).unwrap();
         let child = std::process::Command::new("/bin/sleep")
             .arg("30")
             .spawn()
@@ -1409,10 +1596,88 @@ mod tests {
             Some(child),
         );
         assert!(stage.require_hud_for_action().is_ok());
+        std::fs::write(&visible, br#"{"hud":false,"guide":false}"#).unwrap();
+        let hidden = StageHandle::for_action_gate_test(
+            true,
+            false,
+            "native",
+            Some(ready.clone()),
+            Some(
+                std::process::Command::new("/bin/sleep")
+                    .arg("30")
+                    .spawn()
+                    .unwrap(),
+            ),
+        );
+        let err = hidden.require_hud_for_action().unwrap_err();
+        assert!(err.message().contains("not visible"));
         let mut dead = StageHandle::for_action_gate_test(true, false, "jxa", Some(ready), None);
         let err = dead.require_hud_for_action().unwrap_err();
         assert_eq!(err.code(), ErrorCode::StageRequired);
         let _ = dead.teardown();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn killed_helper_is_reaped_and_not_running() {
+        let child = std::process::Command::new("/bin/sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let pid = child.id();
+        let mut stage = StageHandle::for_action_gate_test(true, false, "native", None, Some(child));
+        signal_kill(pid);
+        let started = std::time::Instant::now();
+        let mut reaped = false;
+        while started.elapsed() < std::time::Duration::from_millis(500) {
+            if !stage.helper_running() && !process_alive(pid) {
+                reaped = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert!(reaped, "try_wait must reap the zombie");
+        let _ = stage.teardown();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn orphan_stage_helper_is_swept_when_daemon_is_dead() {
+        let dir = tempfile::tempdir().unwrap();
+        let control = dir.path().join("vcu-stage-test.json");
+        std::fs::write(&control, b"{\"stop\":false,\"hud\":true}").unwrap();
+        let helper = std::process::Command::new("/bin/sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let helper_pid = helper.id();
+        let daemon = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let daemon_pid = daemon.id();
+        let _ = daemon.wait_with_output();
+        let owner = control.with_extension("owner");
+        std::fs::write(
+            &owner,
+            format!("{{\"daemon_pid\":{daemon_pid},\"helper_pid\":{helper_pid}}}"),
+        )
+        .unwrap();
+        let temp_owner = std::env::temp_dir().join(format!("vcu-stage-mac006-{daemon_pid}.owner"));
+        std::fs::write(
+            &temp_owner,
+            format!("{{\"daemon_pid\":{daemon_pid},\"helper_pid\":{helper_pid}}}"),
+        )
+        .unwrap();
+        let swept = sweep_orphan_stage_helpers();
+        if !process_alive(daemon_pid) {
+            assert!(swept >= 1, "dead daemon owner should be swept");
+            assert!(!temp_owner.exists());
+            let status = helper.wait_with_output().expect("reap helper");
+            assert!(!status.status.success(), "orphan helper should be killed");
+        } else {
+            signal_kill(helper_pid);
+            let _ = helper.wait_with_output();
+        }
+        let _ = std::fs::remove_file(&owner);
+        let _ = std::fs::remove_file(&temp_owner);
     }
 
     #[test]

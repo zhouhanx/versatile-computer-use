@@ -80,8 +80,16 @@ impl DesktopBackend {
         if let Ok(cache) = self.last_refs.lock() {
             if let Some(refs) = cache.get(tab_id) {
                 if let Some(r) = refs.iter().find(|r| r.r#ref == target_ref) {
-                    return r.frame;
+                    if r.frame.is_some() {
+                        return r.frame;
+                    }
                 }
+            }
+        }
+        {
+            let app = self.app.read().await;
+            if let Some(frame) = app.bound_element_frame(tab_id, target_ref) {
+                return Some(frame);
             }
         }
         let snap = self.snapshot(tab_id, SnapshotMode::A11y, 2000).await.ok()?;
@@ -433,8 +441,20 @@ impl BrowserBackend for DesktopBackend {
         self.stage.abort_watch_path()
     }
 
+    fn stage_helper_pid(&self) -> Option<u32> {
+        self.stage.helper_pid()
+    }
+
     fn stage_hud(&self) -> Option<(bool, &'static str)> {
         Some((self.stage.shown, self.stage.presenter))
+    }
+
+    fn require_visible_stage(&self) -> VcuResult<()> {
+        self.stage.require_hud_for_action()
+    }
+
+    fn stage_helper_running(&self) -> Option<bool> {
+        Some(self.stage.helper_running())
     }
 
     fn request_stage_abort(&self) -> VcuResult<()> {

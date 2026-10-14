@@ -230,6 +230,12 @@ pub async fn start_daemon(paths: VcuPaths, config: UserConfig) -> VcuResult<Daem
     let endpoint = format!("http://{local}");
     fs::write(paths.endpoint_path(), &endpoint)?;
     fs::write(paths.pid_path(), std::process::id().to_string())?;
+    let swept = crate::stage::sweep_orphan_stage_helpers();
+    if swept > 0 {
+        info!(swept, "swept orphan stage helpers");
+    }
+    let epoch = crate::stage::write_daemon_epoch(&paths.root);
+    info!(epoch, "desktop stage epoch");
     info!(%endpoint, "vcu daemon listening");
     let join = tokio::spawn(async move {
         if let Err(e) = axum::serve(

@@ -2151,6 +2151,10 @@ impl AppBackend for MacosAppBackend {
         Ok(snap)
     }
 
+    fn bound_element_frame(&self, id: &str, element_ref: &str) -> Option<[f64; 4]> {
+        self.bindings.element_frame(id, element_ref)
+    }
+
     async fn invoke(&mut self, id: &str, element_ref: &str) -> VcuResult<serde_json::Value> {
         self.invoke_observed(id, element_ref, false, None, None).await
     }
