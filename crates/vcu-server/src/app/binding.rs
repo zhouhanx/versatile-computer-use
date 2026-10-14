@@ -467,6 +467,11 @@ pub enum ActionReport {
         name: String,
         identifier: String,
     },
+    Scrolled {
+        role: String,
+        name: String,
+        identifier: String,
+    },
     Stale,
     Missing,
     Ambiguous,
@@ -493,6 +498,11 @@ pub fn interpret_action(raw: &str) -> VcuResult<ActionReport> {
             identifier,
         }),
         "SET" => Ok(ActionReport::Set {
+            role,
+            name,
+            identifier,
+        }),
+        "SCROLLED" => Ok(ActionReport::Scrolled {
             role,
             name,
             identifier,
@@ -567,6 +577,39 @@ fn has_action(element: &BoundElement, name: &str) -> bool {
         .any(|action| action.eq_ignore_ascii_case(name))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScrollRoute {
+    PageAction(String),
+    ScrollBar,
+    AreaBar,
+}
+
+pub fn scroll_route(element: &BoundElement, dy: i32) -> VcuResult<ScrollRoute> {
+    let role = element.role.to_ascii_lowercase();
+    if role.contains("scrollbar") || role.contains("scroll bar") {
+        return Ok(ScrollRoute::ScrollBar);
+    }
+    if role.contains("scrollarea") || role.contains("scroll area") {
+        return Ok(ScrollRoute::AreaBar);
+    }
+    let page = if dy >= 0 {
+        "AXScrollDownByPage"
+    } else {
+        "AXScrollUpByPage"
+    };
+    let line = if dy >= 0 { "AXScrollDown" } else { "AXScrollUp" };
+    if has_action(element, page) {
+        return Ok(ScrollRoute::PageAction(page.into()));
+    }
+    if has_action(element, line) {
+        return Ok(ScrollRoute::PageAction(line.into()));
+    }
+    Err(VcuError::coded(
+        ErrorCode::InvalidInput,
+        "target does not expose a scroll action or scrollbar; refusing to scroll a different control",
+    ))
+}
+
 pub fn require_bound_capability(element: &BoundElement, set_value: Option<&str>) -> VcuResult<()> {
     if set_value.is_some() {
         if element.editable == Some(true) || has_action(element, "AXSetValue") {
@@ -587,6 +630,19 @@ pub fn require_bound_capability(element: &BoundElement, set_value: Option<&str>)
 }
 
 pub fn confirm_readback(expected: Option<&str>, before: Option<&str>, after: &str) -> VcuResult<()> {
+    confirm_observed(expected, before, after, "press")
+}
+
+pub fn confirm_scroll_readback(before: Option<&str>, after: &str) -> VcuResult<()> {
+    confirm_observed(None, before, after, "scroll")
+}
+
+fn confirm_observed(
+    expected: Option<&str>,
+    before: Option<&str>,
+    after: &str,
+    verb: &str,
+) -> VcuResult<()> {
     let after_clean = clean_ax_text(after);
     let after_trimmed = after_clean.trim();
     if let Some(value) = expected {
@@ -607,7 +663,7 @@ pub fn confirm_readback(expected: Option<&str>, before: Option<&str>, after: &st
     }
     Err(VcuError::with_detail(
         ErrorCode::ActionFailed,
-        "press ran but independent readback did not change; refusing to treat the call as success",
+        format!("{verb} ran but independent readback did not change; refusing to treat the call as success"),
         format!("before={} readback={after_trimmed}", before.trim()),
     ))
 }
@@ -619,7 +675,7 @@ pub fn ax_bound_action_script(
     dry_run: bool,
     set_value: Option<&str>,
 ) -> String {
-    ax_bound_script(prepared, dry_run, set_value, false, None)
+    ax_bound_script(prepared, dry_run, set_value, false, None, "", None)
 }
 
 pub fn ax_bound_action_script_with_before(
@@ -628,11 +684,123 @@ pub fn ax_bound_action_script_with_before(
     set_value: Option<&str>,
     before: Option<&str>,
 ) -> String {
-    ax_bound_script(prepared, dry_run, set_value, false, before)
+    ax_bound_script(prepared, dry_run, set_value, false, before, "", None)
 }
 
 pub fn ax_bound_read_script(prepared: &PreparedAction) -> String {
-    ax_bound_script(prepared, true, None, true, None)
+    ax_bound_script(prepared, true, None, true, None, "", None)
+}
+
+pub fn ax_bound_scroll_script(
+    prepared: &PreparedAction,
+    dry_run: bool,
+    route: &ScrollRoute,
+    dy: i32,
+) -> String {
+    let dry = if dry_run { "true" } else { "false" };
+    ax_bound_script(
+        prepared,
+        dry_run,
+        None,
+        false,
+        None,
+        &scroll_mutation(route, dy, dry),
+        None,
+    )
+}
+
+pub fn ax_bound_scroll_read_script(prepared: &PreparedAction) -> String {
+    ax_bound_script(
+        prepared,
+        true,
+        None,
+        true,
+        None,
+        "",
+        Some(SCROLL_STATE_READ),
+    )
+}
+
+const SCROLL_STATE_READ: &str = r#"set vcuState to ""
+    try
+      set sb to scroll bar 1 of vcuEl
+      set vcuState to "bar=" & my vcuClean(value of sb as text)
+    end try
+    if vcuState is "" then
+      try
+        set vcuState to "bar=" & my vcuClean(value of vcuEl as text)
+      end try
+    end if
+    set vcuHelp to ""
+    try
+      set vcuHelp to my vcuClean(value of attribute "AXHelp" of vcuEl)
+    end try
+    if vcuHelp is not "" then
+      if vcuState is "" then
+        set vcuState to vcuHelp
+      else
+        set vcuState to vcuHelp & " " & vcuState
+      end if
+    end if
+    if vcuState is "" then
+      try
+        set vcuState to my vcuClean(value of attribute "AXValue" of vcuEl)
+      end try
+    end if
+    return "READ|" & vcuState"#;
+
+fn scroll_mutation(route: &ScrollRoute, dy: i32, dry: &str) -> String {
+    let delta = if dy >= 0 { "(1 / 5)" } else { "(-1 / 5)" };
+    let perform = match route {
+        ScrollRoute::PageAction(action) => format!(
+            r#"try
+      perform action "{action}" of vcuEl
+      return "SCROLLED|" & r & "|" & nm & "|" & ident
+    on error errMsg
+      return "ERROR|" & errMsg
+    end try"#
+        ),
+        ScrollRoute::ScrollBar => format!(
+            r#"try
+      set cur to value of vcuEl
+      set nxt to cur + {delta}
+      if nxt > 1 then set nxt to 1
+      if nxt < 0 then set nxt to 0
+      if nxt = cur then return "ERROR|scrollbar did not move"
+      set value of vcuEl to nxt
+      return "SCROLLED|" & r & "|" & nm & "|" & ident
+    on error errMsg
+      return "ERROR|" & errMsg
+    end try"#
+        ),
+        ScrollRoute::AreaBar => format!(
+            r#"try
+      set sb to missing value
+      try
+        repeat with bar in scroll bars of vcuEl
+          try
+            set orient to my vcuClean(value of attribute "AXOrientation" of bar)
+            if orient contains "Vertical" or orient contains "AXVerticalOrientation" then set sb to bar
+          end try
+        end repeat
+      end try
+      if sb is missing value then set sb to scroll bar 1 of vcuEl
+      set cur to value of sb
+      set nxt to cur + {delta}
+      if nxt > 1 then set nxt to 1
+      if nxt < 0 then set nxt to 0
+      if nxt = cur then return "ERROR|scrollbar did not move"
+      set value of sb to nxt
+      return "SCROLLED|" & r & "|" & nm & "|" & ident
+    on error errMsg
+      return "ERROR|" & errMsg
+    end try"#
+        ),
+    };
+    format!(
+        r#"if {dry} then return "DRY|" & r & "|" & nm & "|" & ident
+    {perform}"#
+    )
 }
 
 fn ax_bound_script(
@@ -641,6 +809,8 @@ fn ax_bound_script(
     set_value: Option<&str>,
     read_only: bool,
     before: Option<&str>,
+    scroll_branch: &str,
+    read_override: Option<&str>,
 ) -> String {
     let process = super::scene::applescript_string(&prepared.process);
     let title = super::scene::applescript_string(&prepared.title);
@@ -669,7 +839,9 @@ fn ax_bound_script(
     } else {
         "false"
     };
-    let read_branch = if read_only {
+    let read_branch = if let Some(custom) = read_override {
+        custom.to_string()
+    } else if read_only {
         r#"set vcuState to ""
     try
       set vcuState to my vcuClean(value of attribute "AXHelp" of vcuEl)
@@ -684,14 +856,82 @@ fn ax_bound_script(
         set vcuState to my vcuClean(value of vcuEl as text)
       end try
     end if
-    return "READ|" & vcuState"#
+    return "READ|" & vcuState"#.to_string()
     } else {
-        ""
+        String::new()
     };
     let x = prepared.frame[0].round() as i32;
     let y = prepared.frame[1].round() as i32;
     let width = prepared.frame[2].round() as i32;
     let height = prepared.frame[3].round() as i32;
+    let changed_branch = r#"set vcuSeen to false
+        set vcuTries to 0
+        repeat while vcuTries < 3
+          set vcuAfter to ""
+          try
+            set vcuAfter to my vcuClean(value of attribute "AXHelp" of vcuEl)
+          end try
+          if vcuAfter is "" then
+            try
+              set vcuAfter to my vcuClean(value of attribute "AXValue" of vcuEl)
+            end try
+          end if
+          if vcuAfter is "" then
+            try
+              set vcuAfter to my vcuClean(value of vcuEl as text)
+            end try
+          end if
+          if vcuAfter is not "" and vcuAfter is not vcuBefore then
+            set vcuSeen to true
+            exit repeat
+          end if
+          set vcuTries to vcuTries + 1
+          if vcuTries < 3 then delay 0.2
+        end repeat
+        if vcuSeen then
+          return "PRESSED|" & r & "|" & nm & "|" & ident
+        end if"#;
+    let action_tail = if scroll_branch.is_empty() {
+        format!(
+            r#"if {dry} then return "DRY|" & r & "|" & nm & "|" & ident
+    if {do_set} then
+      try
+        set value of vcuEl to "{value}"
+        return "SET|" & r & "|" & nm & "|" & ident
+      on error errMsg
+        return "ERROR|" & errMsg
+      end try
+    end if
+    set vcuBefore to "{before}"
+    set vcuPressStarted to current application's NSDate's timeIntervalSinceReferenceDate()
+    try
+      perform action "AXPress" of vcuEl
+      set vcuPressElapsed to (current application's NSDate's timeIntervalSinceReferenceDate()) - vcuPressStarted
+      if vcuPressElapsed >= {abandon} then
+        {changed_branch}
+        delay 5
+        return "HUNG|" & r & "|" & nm & "|" & ident
+      end if
+      return "PRESSED|" & r & "|" & nm & "|" & ident
+    on error errMsg
+      set vcuPressElapsed to (current application's NSDate's timeIntervalSinceReferenceDate()) - vcuPressStarted
+      if vcuPressElapsed >= {abandon} then
+        {changed_branch}
+        delay 5
+        return "HUNG|" & errMsg
+      end if
+      return "ERROR|" & errMsg
+    end try"#,
+            dry = dry,
+            do_set = do_set,
+            value = value,
+            before = before,
+            abandon = AX_PRESS_ABANDON_SECONDS,
+            changed_branch = changed_branch,
+        )
+    } else {
+        String::new()
+    };
     format!(
         r#"use framework "Foundation"
 on vcuClean(t)
@@ -808,36 +1048,9 @@ tell application "System Events"
     if "{ident}" is not "" then
       if ident is not "{ident}" then return "STALE|" & r & "|" & nm & "|" & ident
     end if
+    {scroll_branch}
     {read_branch}
-    if {dry} then return "DRY|" & r & "|" & nm & "|" & ident
-    if {do_set} then
-      try
-        set value of vcuEl to "{value}"
-        return "SET|" & r & "|" & nm & "|" & ident
-      on error errMsg
-        return "ERROR|" & errMsg
-      end try
-    end if
-    set vcuBefore to "{before}"
-    set vcuPressStarted to current application's NSDate's timeIntervalSinceReferenceDate()
-    try
-      perform action "AXPress" of vcuEl
-      set vcuPressElapsed to (current application's NSDate's timeIntervalSinceReferenceDate()) - vcuPressStarted
-      if vcuPressElapsed >= {abandon} then
-        {changed_branch}
-        delay 5
-        return "HUNG|" & r & "|" & nm & "|" & ident
-      end if
-      return "PRESSED|" & r & "|" & nm & "|" & ident
-    on error errMsg
-      set vcuPressElapsed to (current application's NSDate's timeIntervalSinceReferenceDate()) - vcuPressStarted
-      if vcuPressElapsed >= {abandon} then
-        {changed_branch}
-        delay 5
-        return "HUNG|" & errMsg
-      end if
-      return "ERROR|" & errMsg
-    end try
+    {action_tail}
   end tell
 end tell
 "#,
@@ -851,39 +1064,9 @@ end tell
         role = role,
         name = name,
         ident = ident,
-        dry = dry,
-        do_set = do_set,
-        value = value,
         read_branch = read_branch,
-        abandon = AX_PRESS_ABANDON_SECONDS,
-        before = before,
-        changed_branch = r#"set vcuSeen to false
-        set vcuTries to 0
-        repeat while vcuTries < 3
-          set vcuAfter to ""
-          try
-            set vcuAfter to my vcuClean(value of attribute "AXHelp" of vcuEl)
-          end try
-          if vcuAfter is "" then
-            try
-              set vcuAfter to my vcuClean(value of attribute "AXValue" of vcuEl)
-            end try
-          end if
-          if vcuAfter is "" then
-            try
-              set vcuAfter to my vcuClean(value of vcuEl as text)
-            end try
-          end if
-          if vcuAfter is not "" and vcuAfter is not vcuBefore then
-            set vcuSeen to true
-            exit repeat
-          end if
-          set vcuTries to vcuTries + 1
-          if vcuTries < 3 then delay 0.2
-        end repeat
-        if vcuSeen then
-          return "PRESSED|" & r & "|" & nm & "|" & ident
-        end if"#,
+        scroll_branch = scroll_branch,
+        action_tail = action_tail,
     )
 }
 
@@ -1192,4 +1375,36 @@ mod tests {
         assert!(unchanged.message().contains("did not change"));
         assert!(confirm_readback(None, Some(""), "").is_err());
     }
+
+    #[test]
+    fn scroll_route_stays_on_the_named_control() {
+        let area = prepared(vec![], Some(false));
+        let mut area = area;
+        area.element.role = "AXScrollArea".into();
+        area.element.name = "scroll-a".into();
+        assert_eq!(scroll_route(&area.element, 1).unwrap(), ScrollRoute::AreaBar);
+        let button = prepared(vec!["AXPress".into()], Some(false));
+        let refused = scroll_route(&button.element, 1).unwrap_err();
+        assert!(refused.message().contains("refusing to scroll a different control"));
+        let page = prepared(vec!["AXScrollDownByPage".into()], Some(false));
+        assert!(matches!(scroll_route(&page.element, 1).unwrap(), ScrollRoute::PageAction(_)));
+        let mut paged_area = page;
+        paged_area.element.role = "AXScrollArea".into();
+        assert_eq!(scroll_route(&paged_area.element, 1).unwrap(), ScrollRoute::AreaBar);
+        let script = ax_bound_scroll_script(&area, false, &ScrollRoute::AreaBar, 1);
+        assert!(script.contains("scroll bar 1 of vcuEl"));
+        assert!(!script.contains("window 1"));
+        assert!(!script.contains("perform action \"AXPress\""));
+        let dry = ax_bound_scroll_script(&area, true, &ScrollRoute::AreaBar, -1);
+        assert!(dry.contains("if true then return \"DRY|\""));
+        assert_eq!(
+            interpret_action("SCROLLED|AXScrollArea|scroll-a|scroll-a").unwrap(),
+            ActionReport::Scrolled {
+                role: "AXScrollArea".into(),
+                name: "scroll-a".into(),
+                identifier: "scroll-a".into(),
+            }
+        );
+    }
+
 }

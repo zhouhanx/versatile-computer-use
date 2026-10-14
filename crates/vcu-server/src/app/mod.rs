@@ -406,6 +406,89 @@ pub fn publish_feishu_latest(
     publish_latest_capture(id, src, dir, meta, "feishu-latest")
 }
 
+pub fn app_scene_wait_match(
+    elements: &[AppElement],
+    want_ref: Option<&str>,
+    want_name: Option<&str>,
+    want_role: Option<&str>,
+    want_value: Option<&str>,
+) -> Option<String> {
+    let matches: Vec<&AppElement> = elements
+        .iter()
+        .filter(|element| {
+            if let Some(want) = want_ref {
+                let bound = element.bound_ref.as_deref() == Some(want);
+                if element.r#ref != want && !bound {
+                    return false;
+                }
+            }
+            if let Some(want) = want_name {
+                let needle = want.to_lowercase();
+                let ident = element.ax_identifier.as_deref().unwrap_or("").to_lowercase();
+                if !element.name.to_lowercase().contains(&needle) && ident != needle {
+                    return false;
+                }
+            }
+            if let Some(want) = want_role {
+                if !element.role.eq_ignore_ascii_case(want) {
+                    return false;
+                }
+            }
+            if let Some(want) = want_value {
+                let hay = format!(
+                    "{} {}",
+                    element.name,
+                    element.value.as_deref().unwrap_or("")
+                );
+                if !hay.to_lowercase().contains(&want.to_lowercase()) {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+    if want_ref.is_some() {
+        return matches.first().map(|element| {
+            element
+                .bound_ref
+                .clone()
+                .unwrap_or_else(|| element.r#ref.clone())
+        });
+    }
+    if let Some(control) = matches.iter().find(|element| !is_window_role(&element.role)) {
+        return Some(control.bound_ref.clone().unwrap_or_else(|| control.r#ref.clone()));
+    }
+    matches.first().map(|element| {
+        element
+            .bound_ref
+            .clone()
+            .unwrap_or_else(|| element.r#ref.clone())
+    })
+}
+
+fn is_window_role(role: &str) -> bool {
+    let role = role.to_ascii_lowercase();
+    role == "window" || role == "axwindow" || role.contains("axwindow")
+}
+
+pub fn scene_extract_from_elements(
+    elements: &[AppElement],
+    selector: &str,
+    source: &str,
+) -> Vec<serde_json::Value> {
+    let mut matches = extract_elements(elements, selector);
+    for item in &mut matches {
+        item["source"] = serde_json::json!(source);
+        let role = item.get("role").and_then(|v| v.as_str()).unwrap_or("");
+        let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        if scene::is_secret_control(role, name) {
+            item["value"] = serde_json::Value::Null;
+            item["redacted"] = serde_json::json!(true);
+        }
+    }
+    matches
+}
+
 pub fn element_wait_match(
     elements: &[AppElement],
     want_ref: Option<&str>,
@@ -553,6 +636,19 @@ pub trait AppBackend: Send + Sync {
             ErrorCode::NotImplemented,
             "app scroll not implemented",
         ))
+    }
+    /// Generation-checked scroll. Default ignores binding fields and calls scroll.
+    async fn scroll_observed(
+        &mut self,
+        id: &str,
+        element_ref: &str,
+        dy: i32,
+        dry_run: bool,
+        scene_id: Option<&str>,
+        capture_id: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        let _ = (dry_run, scene_id, capture_id);
+        self.scroll(id, Some(element_ref), dy).await
     }
     /// AX hit-test at a point (points, y down) then AXPress. Never warps the OS cursor.
     async fn press_at_point(
@@ -784,6 +880,65 @@ mod tests {
             Some("e15")
         );
         assert!(element_wait_match(&els, Some("e9"), None, None).is_none());
+        let marked = vec![
+            AppElement {
+                r#ref: "n1".into(),
+                role: "AXWindow".into(),
+                name: "VCU-SAME".into(),
+                value: Some("VCU-SAME".into()),
+                frame: None,
+                parent_ref: None,
+                actions: Vec::new(),
+                editable: None,
+                index_path: None,
+                ax_identifier: None,
+                bound_ref: Some("b1.OLDTOKENOLDTOKENOLDTOKEN.n1".into()),
+            },
+            AppElement {
+                r#ref: "n2".into(),
+                role: "AXTextArea".into(),
+                name: "body".into(),
+                value: Some("VCU-MAC-004-marker".into()),
+                frame: None,
+                parent_ref: None,
+                actions: vec!["AXSetValue".into()],
+                editable: Some(true),
+                index_path: Some("0".into()),
+                ax_identifier: Some("body".into()),
+                bound_ref: Some("b1.NEWTOKENNEWTOKENNEWTOKEN.n2".into()),
+            },
+            AppElement {
+                r#ref: "n3".into(),
+                role: "AXSecureTextField".into(),
+                name: "Password".into(),
+                value: Some("vcu-secret-should-not-leak".into()),
+                frame: None,
+                parent_ref: None,
+                actions: Vec::new(),
+                editable: Some(true),
+                index_path: Some("1".into()),
+                ax_identifier: Some("secret".into()),
+                bound_ref: Some("b1.NEWTOKENNEWTOKENNEWTOKEN.n3".into()),
+            },
+        ];
+        assert_eq!(
+            app_scene_wait_match(&marked, None, None, None, Some("VCU-MAC-004-marker")).as_deref(),
+            Some("b1.NEWTOKENNEWTOKENNEWTOKEN.n2")
+        );
+        assert!(app_scene_wait_match(
+            &marked,
+            Some("b1.OLDTOKENOLDTOKENOLDTOKEN.n2"),
+            Some("body"),
+            None,
+            None
+        )
+        .is_none());
+        let hits = scene_extract_from_elements(&marked, "*", "desktop.scene");
+        assert!(hits.iter().all(|hit| hit["source"] == "desktop.scene"));
+        let secret = hits.iter().find(|hit| hit["name"] == "Password").unwrap();
+        assert!(secret["value"].is_null());
+        assert_eq!(secret["redacted"], true);
+        assert!(!hits.iter().any(|hit| hit.to_string().contains("vcu-secret-should-not-leak")));
         assert_eq!(
             webview_crop_frame(&els, Some("e15")),
             Some([2218.0, 36.0, 1424.0, 1038.0])

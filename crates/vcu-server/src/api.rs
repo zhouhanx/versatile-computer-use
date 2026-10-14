@@ -21,7 +21,7 @@ use vcu_core::{
 };
 
 use crate::app::scene::SceneQuery;
-use crate::app::{element_wait_match, extract_elements, json_frame, map_screenshot_pixel, merge_login_latest_page_url, pixel_scale, publish_feishu_latest, publish_login_latest, smallest_ref_at_point, webview_crop_frame, AppCapture, LoginLatestMeta};
+use crate::app::{app_scene_wait_match, element_wait_match, json_frame, map_screenshot_pixel, merge_login_latest_page_url, pixel_scale, publish_feishu_latest, publish_login_latest, scene_extract_from_elements, smallest_ref_at_point, webview_crop_frame, AppCapture, LoginLatestMeta};
 use crate::doctor;
 use crate::state::{create_backend, AppState, SessionSlot};
 use crate::vision::VisionService;
@@ -37,6 +37,9 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/app/snapshot", post(app_snapshot))
         .route("/v1/app/invoke", post(app_invoke))
         .route("/v1/app/set-value", post(app_set_value))
+        .route("/v1/app/scroll", post(app_scroll))
+        .route("/v1/app/wait", post(app_wait))
+        .route("/v1/app/extract", post(app_extract))
         .route("/v1/app/focus", post(app_focus))
         .route("/v1/doctor", get(doctor_handler))
         .route("/v1/browser/login-state", get(browser_login_state))
@@ -3191,12 +3194,14 @@ async fn snapshot_app_json(state: &AppState, req: &AppSnapshotReq) -> Result<Val
         Ok(snap) => {
             let mut body = serde_json::to_value(&snap).unwrap_or_else(|_| json!({}));
             if let Some(sel) = req.selector.as_deref() {
-                let matches = extract_elements(&snap.elements, sel);
+                let source = if use_scene { "desktop.scene" } else { "app.scene" };
+                let matches = scene_extract_from_elements(&snap.elements, sel, source);
                 body["extract"] = json!({
                     "selector": sel,
                     "count": matches.len(),
                     "matches": matches,
-                    "hud": false
+                    "hud": false,
+                    "source": source
                 });
             }
             if req.pixels {
@@ -3946,6 +3951,230 @@ async fn app_set_value(
             err_response(e)
         }
     }
+}
+
+#[derive(Deserialize)]
+struct AppScrollReq {
+    id: String,
+    r#ref: String,
+    #[serde(default)]
+    dy: i32,
+    #[serde(default)]
+    dry_run: bool,
+    #[serde(default)]
+    scene_id: Option<String>,
+    #[serde(default)]
+    capture_id: Option<String>,
+}
+
+async fn app_scroll(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AppScrollReq>,
+) -> impl IntoResponse {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if req.r#ref.trim().is_empty() {
+        return err_response(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "scroll requires a generation-bound ref; refusing window order",
+        ));
+    }
+    if let Err(e) = crate::app::scene::refuse_live_mutation(&req.r#ref) {
+        return err_response(e);
+    }
+    let mut backend = state.app_backend.write().await;
+    match backend
+        .scroll_observed(
+            &req.id,
+            &req.r#ref,
+            req.dy,
+            req.dry_run,
+            req.scene_id.as_deref(),
+            req.capture_id.as_deref(),
+        )
+        .await
+    {
+        Ok(v) => {
+            crate::audit::append(
+                &state.paths,
+                "app.scroll",
+                json!({"id": req.id, "ref": req.r#ref, "ok": true}),
+            );
+            Json(Envelope::ok(v)).into_response()
+        }
+        Err(e) => {
+            crate::audit::append(
+                &state.paths,
+                "app.scroll",
+                json!({"id": req.id, "ref": req.r#ref, "ok": false, "code": format!("{:?}", e.code())}),
+            );
+            err_response(e)
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct AppWaitReq {
+    id: String,
+    #[serde(default)]
+    window_id: Option<u64>,
+    #[serde(default)]
+    r#ref: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    role: Option<String>,
+    #[serde(default)]
+    value: Option<String>,
+    #[serde(default)]
+    timeout_ms: Option<u64>,
+}
+
+async fn app_wait(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AppWaitReq>,
+) -> impl IntoResponse {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    let want_ref = req.r#ref.as_deref().filter(|s| !s.is_empty());
+    let want_name = req.name.as_deref().filter(|s| !s.is_empty());
+    let want_role = req.role.as_deref().filter(|s| !s.is_empty());
+    let want_value = req.value.as_deref().filter(|s| !s.is_empty());
+    if want_ref.is_none() && want_name.is_none() && want_role.is_none() && want_value.is_none() {
+        return err_response(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "wait requires ref, name, role, or value; refusing a blind sleep",
+        ));
+    }
+    let ms = req.timeout_ms.unwrap_or(800).min(5000);
+    let started = std::time::Instant::now();
+    let budget = std::time::Duration::from_millis(ms.max(1));
+    loop {
+        let query = SceneQuery {
+            window_id: req.window_id,
+            max_nodes: Some(160),
+            max_depth: Some(12),
+            timeout_ms: Some(4000),
+            ..SceneQuery::default()
+        };
+        let snap = {
+            let backend = state.app_backend.read().await;
+            match backend.snapshot_scene(&req.id, 4000, &query).await {
+                Ok(snap) => snap,
+                Err(e) => return err_response(e),
+            }
+        };
+        if snap.truncation_reason.as_deref() == Some("ambiguous_window") {
+            return err_response(VcuError::coded(
+                ErrorCode::InvalidInput,
+                "wait requires window_id when multiple windows; refusing to guess or reuse an old ref",
+            ));
+        }
+        if let Some(found) = app_scene_wait_match(
+            &snap.elements,
+            want_ref,
+            want_name,
+            want_role,
+            want_value,
+        ) {
+            if want_ref.is_some() && found != want_ref.unwrap_or_default() {
+                return err_response(VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "wait ref matched a different control; refusing to reuse a stale ref",
+                ));
+            }
+            let matched = snap.elements.iter().find(|element| {
+                element.bound_ref.as_deref() == Some(found.as_str()) || element.r#ref == found
+            });
+            return Json(Envelope::ok(json!({
+                "found_ref": found,
+                "role": matched.map(|element| element.role.clone()),
+                "name": matched.map(|element| element.name.clone()),
+                "identifier": matched.and_then(|element| element.ax_identifier.clone()),
+                "waited_ms": started.elapsed().as_millis() as u64,
+                "scene_id": snap.scene_id,
+                "window_id": snap.window_id,
+                "input_path": "scene_wait",
+                "os_cursor_used": false,
+                "hid_injected": false
+            }))).into_response();
+        }
+        if started.elapsed() >= budget {
+            let stale = if want_ref.is_some() {
+                "; refusing to reuse a stale ref"
+            } else {
+                ""
+            };
+            return err_response(VcuError::coded(
+                ErrorCode::ActionFailed,
+                format!(
+                    "wait timed out after {ms}ms for ref={want_ref:?} name={want_name:?} role={want_role:?} value={want_value:?}{stale}"
+                ),
+            ));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
+}
+
+#[derive(Deserialize)]
+struct AppExtractReq {
+    id: String,
+    #[serde(default)]
+    window_id: Option<u64>,
+    #[serde(default)]
+    selector: Option<String>,
+    #[serde(default)]
+    max_nodes: Option<u32>,
+    #[serde(default)]
+    max_depth: Option<u32>,
+    #[serde(default)]
+    timeout_ms: Option<u64>,
+}
+
+async fn app_extract(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AppExtractReq>,
+) -> impl IntoResponse {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    let selector = req.selector.unwrap_or_else(|| "*".into());
+    let query = SceneQuery {
+        window_id: req.window_id,
+        max_nodes: Some(req.max_nodes.unwrap_or(160)),
+        max_depth: Some(req.max_depth.unwrap_or(12)),
+        timeout_ms: Some(req.timeout_ms.unwrap_or(6000)),
+        ..SceneQuery::default()
+    };
+    let backend = state.app_backend.read().await;
+    let snap = match backend.snapshot_scene(&req.id, 4000, &query).await {
+        Ok(snap) => snap,
+        Err(e) => return err_response(e),
+    };
+    if snap.truncation_reason.as_deref() == Some("ambiguous_window") {
+        return err_response(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "extract requires window_id when multiple windows; refusing to mix scenes",
+        ));
+    }
+    let matches = scene_extract_from_elements(&snap.elements, &selector, "desktop.scene");
+    Json(Envelope::ok(json!({
+        "selector": selector,
+        "count": matches.len(),
+        "matches": matches,
+        "scene_id": snap.scene_id,
+        "window_id": snap.window_id,
+        "summary": snap.summary,
+        "source": "desktop.scene",
+        "hud": false,
+        "os_cursor_used": false,
+        "hid_injected": false
+    }))).into_response()
 }
 
 async fn app_focus(

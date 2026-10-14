@@ -9,9 +9,10 @@ use vcu_core::{
 };
 
 use super::{ActionResultDetail, BrowserBackend, ScreenshotData, SnapshotData};
+use crate::app::scene::SceneQuery;
 use crate::app::{
     ax_point_from_pixel, is_editable_ax_role, is_webview_like, smallest_ref_at_point,
-    webview_crop_frame, AppBackend,
+    webview_crop_frame, AppBackend, AppElement,
 };
 use crate::stage::StageHandle;
 
@@ -129,9 +130,9 @@ impl DesktopBackend {
         let budget = std::time::Duration::from_millis(ms.max(1));
         loop {
             self.ensure_not_aborted()?;
-            let snap = self.snapshot(tab_id, SnapshotMode::A11y, 2000).await?;
+            let refs = self.wait_refs(tab_id, action).await?;
             if let Some(found) =
-                scene_wait_match(&snap.dom_refs, want_ref, want_name, want_role, want_value)
+                scene_wait_match(&refs, want_ref, want_name, want_role, want_value)
             {
                 return Ok(ActionResultDetail {
                     ok: true,
@@ -144,16 +145,49 @@ impl DesktopBackend {
                 });
             }
             if started.elapsed() >= budget {
+                let stale = if want_ref.is_some() {
+                    "; refusing to reuse a stale ref"
+                } else {
+                    ""
+                };
                 return Err(VcuError::coded(
                     ErrorCode::ActionFailed,
                     format!(
-                        "wait timed out after {ms}ms for ref={:?} name={:?} role={:?} value={:?}",
+                        "wait timed out after {ms}ms for ref={:?} name={:?} role={:?} value={:?}{stale}",
                         want_ref, want_name, want_role, want_value
                     ),
                 ));
             }
             self.sleep_abortable(50).await?;
         }
+    }
+
+    async fn wait_refs(&self, tab_id: &str, action: &ActionRequest) -> VcuResult<Vec<DomRef>> {
+        if self.app.read().await.platform() != "macos" {
+            let snap = self.snapshot(tab_id, SnapshotMode::A11y, 2000).await?;
+            return Ok(snap.dom_refs);
+        }
+        let window_id = action
+            .args
+            .get("window_id")
+            .and_then(|v| v.as_u64())
+            .or_else(|| action.target.get("window_id").and_then(|v| v.as_u64()));
+        let query = SceneQuery {
+            window_id,
+            max_nodes: Some(160),
+            max_depth: Some(12),
+            timeout_ms: Some(4000),
+            ..SceneQuery::default()
+        };
+        let app = self.app.read().await;
+        let snap = app.snapshot_scene(tab_id, 2000, &query).await?;
+        if snap.truncation_reason.as_deref() == Some("ambiguous_window") {
+            return Err(VcuError::coded(
+                ErrorCode::InvalidInput,
+                "wait requires window_id when multiple windows; refusing to guess or reuse an old ref",
+            ));
+        }
+        Ok(snap.elements.iter().map(element_as_ref).collect())
     }
 
     fn ensure_not_aborted(&self) -> VcuResult<()> {
@@ -657,6 +691,26 @@ impl BrowserBackend for DesktopBackend {
     }
 
     async fn extract(&self, tab_id: &str, selector: &str) -> VcuResult<ExtractResult> {
+        if self.app.read().await.platform() == "macos" {
+            let app = self.app.read().await;
+            let snap = app
+                .snapshot_scene(tab_id, 4000, &SceneQuery::default())
+                .await?;
+            if snap.truncation_reason.as_deref() == Some("ambiguous_window") {
+                return Err(VcuError::coded(
+                    ErrorCode::InvalidInput,
+                    "extract requires one window or an app extract window_id; refusing to mix scenes",
+                ));
+            }
+            let refs: Vec<DomRef> = snap.elements.iter().map(element_as_ref).collect();
+            let matches = scene_extract_matches(&refs, selector);
+            return Ok(ExtractResult {
+                session_id: String::new(),
+                selector: Some(selector.to_string()),
+                count: matches.len(),
+                matches,
+            });
+        }
         let snap = self.snapshot(tab_id, SnapshotMode::A11y, 4000).await?;
         let matches = scene_extract_matches(&snap.dom_refs, selector);
         Ok(ExtractResult {
@@ -778,10 +832,31 @@ impl BrowserBackend for DesktopBackend {
             }
             "scroll" => {
                 if self.app.read().await.platform() == "macos" {
-                    return Err(VcuError::coded(
-                        ErrorCode::InvalidInput,
-                        "desktop scroll is not generation-bound; refusing window order",
-                    ));
+                    let r = action.target.get("ref").and_then(|v| v.as_str()).filter(|s| !s.is_empty());
+                    let Some(r) = r else {
+                        return Err(VcuError::coded(
+                            ErrorCode::InvalidInput,
+                            "desktop scroll requires a generation-bound ref; refusing window order",
+                        ));
+                    };
+                    crate::app::binding::require_bound_ref(r)?;
+                    let dy = action.args.get("dy").and_then(|v| v.as_i64()).unwrap_or(600) as i32;
+                    let scene_id = action.args.get("scene_id").and_then(|v| v.as_str());
+                    let capture_id = action.args.get("capture_id").and_then(|v| v.as_str());
+                    let dry_run = action.args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let mut app = self.app.write().await;
+                    let mut detail = app
+                        .scroll_observed(tab_id, r, dy, dry_run, scene_id, capture_id)
+                        .await?;
+                    if detail.get("os_cursor_used").and_then(|v| v.as_bool()) == Some(true) {
+                        return Err(VcuError::coded(
+                            ErrorCode::OsCursorDenied,
+                            "desktop scroll attempted OS cursor warp",
+                        ));
+                    }
+                    detail["os_cursor_used"] = serde_json::json!(false);
+                    detail["hid_injected"] = serde_json::json!(false);
+                    return Ok(ActionResultDetail { ok: true, detail });
                 }
                 if Self::settings_like(tab_id) {
                     return Err(Self::settings_readonly_err());
@@ -911,6 +986,20 @@ impl BrowserBackend for DesktopBackend {
 
 
 
+fn element_as_ref(element: &AppElement) -> DomRef {
+    DomRef {
+        r#ref: element.bound_ref.clone().unwrap_or_else(|| element.r#ref.clone()),
+        role: element.role.clone(),
+        name: element.name.clone(),
+        value: element.value.clone(),
+        selector: None,
+        frame: element.frame,
+        parent_ref: element.parent_ref.clone(),
+        actions: element.actions.clone(),
+        editable: element.editable,
+    }
+}
+
 fn scene_extract_matches(refs: &[DomRef], selector: &str) -> Vec<serde_json::Value> {
     let sel = selector.trim();
     let star = sel.is_empty() || sel == "*";
@@ -939,8 +1028,17 @@ fn scene_extract_matches(refs: &[DomRef], selector: &str) -> Vec<serde_json::Val
                 "parent_ref": r.parent_ref,
                 "actions": r.actions,
                 "editable": r.editable,
-                "source": "desktop.scene"
+                "source": "desktop.scene",
+                "redacted": crate::app::scene::is_secret_control(&r.role, &r.name)
             })
+        })
+        .map(|mut item| {
+            let role = item.get("role").and_then(|v| v.as_str()).unwrap_or("");
+            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            if crate::app::scene::is_secret_control(role, name) {
+                item["value"] = serde_json::Value::Null;
+            }
+            item
         })
         .collect()
 }

@@ -1660,6 +1660,150 @@ impl MacosAppBackend {
         ))
     }
 
+    fn scroll_bound(
+        &self,
+        id: &str,
+        element_ref: &str,
+        dy: i32,
+        dry_run: bool,
+        scene_id: Option<&str>,
+        capture_id: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        let name = Self::process_name_from_id(id);
+        self.ensure_operable(&name)?;
+        scene::refuse_live_mutation(element_ref)?;
+        let pid = Self::pid_from_id(id).unwrap_or(0);
+        let window_id = self.bindings.window_of(element_ref)?;
+        let live = scene_cg_windows(pid)
+            .into_iter()
+            .find(|win| win.id == window_id)
+            .map(|win| [win.x as f64, win.y as f64, win.width as f64, win.height as f64]);
+        let prepared = self
+            .bindings
+            .prepare_action(id, element_ref, scene_id, capture_id, live)?;
+        let route = binding::scroll_route(&prepared.element, dy)?;
+        let route_name = match &route {
+            binding::ScrollRoute::PageAction(action) => action.clone(),
+            binding::ScrollRoute::ScrollBar => "scrollbar".into(),
+            binding::ScrollRoute::AreaBar => "scroll-area-bar".into(),
+        };
+        if dry_run {
+            let script = binding::ax_bound_scroll_script(&prepared, true, &route, dy);
+            let out = self.run_bound_script(&script, &prepared, capture_id)?;
+            let report = binding::interpret_action(&out)?;
+            return match report {
+                binding::ActionReport::Dry { role, name, identifier } => {
+                    let mut body = bound_result(
+                        &prepared.process,
+                        element_ref,
+                        &prepared,
+                        true,
+                        "bound_ax_scroll",
+                        &role,
+                        &name,
+                        &identifier,
+                        &out,
+                        false,
+                        None,
+                    );
+                    body["dy"] = serde_json::json!(dy);
+                    body["scroll_route"] = serde_json::json!(route_name);
+                    Ok(body)
+                }
+                binding::ActionReport::Stale
+                | binding::ActionReport::Missing
+                | binding::ActionReport::Ambiguous => Err(binding::action_error(&report)),
+                other => {
+                    self.bindings.consume(&prepared.token, capture_id);
+                    Err(binding::action_error(&other))
+                }
+            };
+        }
+        let before = match self.read_scroll_once(&prepared) {
+            Ok(value) => Some(value),
+            Err(err) if binding::is_timeout(&err) => {
+                self.bindings.consume(&prepared.token, capture_id);
+                return Err(err);
+            }
+            Err(_) => None,
+        };
+        let script = binding::ax_bound_scroll_script(&prepared, false, &route, dy);
+        let out = self.run_bound_script(&script, &prepared, capture_id)?;
+        let report = binding::interpret_action(&out)?;
+        let (role, element_name, identifier) = match report {
+            binding::ActionReport::Scrolled { role, name, identifier } => (role, name, identifier),
+            binding::ActionReport::Stale
+            | binding::ActionReport::Missing
+            | binding::ActionReport::Ambiguous => return Err(binding::action_error(&report)),
+            other => {
+                self.bindings.consume(&prepared.token, capture_id);
+                return Err(binding::action_error(&other));
+            }
+        };
+        let readback = self.confirm_scroll(&prepared, capture_id, before.as_deref())?;
+        self.bindings.consume(&prepared.token, capture_id);
+        let mut body = bound_result(
+            &prepared.process,
+            element_ref,
+            &prepared,
+            false,
+            "bound_ax_scroll",
+            &role,
+            &element_name,
+            &identifier,
+            &out,
+            true,
+            Some(&readback),
+        );
+        body["dy"] = serde_json::json!(dy);
+        body["scroll_route"] = serde_json::json!(route_name);
+        Ok(body)
+    }
+
+    fn read_scroll_once(&self, prepared: &binding::PreparedAction) -> VcuResult<String> {
+        let script = binding::ax_bound_scroll_read_script(prepared);
+        let out = Self::run_osascript_timeout(&script, 4000)?;
+        match binding::interpret_read(&out)? {
+            binding::ActionReport::Read(value) => Ok(value),
+            other => Err(binding::action_error(&other)),
+        }
+    }
+
+    fn confirm_scroll(
+        &self,
+        prepared: &binding::PreparedAction,
+        capture_id: Option<&str>,
+        before: Option<&str>,
+    ) -> VcuResult<String> {
+        let mut last_error = None;
+        for attempt in 0..3 {
+            if attempt > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+            match self.read_scroll_once(prepared) {
+                Ok(after) => match binding::confirm_scroll_readback(before, &after) {
+                    Ok(()) => return Ok(after),
+                    Err(err) => last_error = Some(err),
+                },
+                Err(err) if binding::is_timeout(&err) => {
+                    self.bindings.consume(&prepared.token, capture_id);
+                    return Err(err);
+                }
+                Err(err) => {
+                    self.bindings.consume(&prepared.token, capture_id);
+                    return Err(err);
+                }
+            }
+        }
+        self.bindings.consume(&prepared.token, capture_id);
+        Err(last_error.unwrap_or_else(|| {
+            VcuError::coded(
+                ErrorCode::ActionFailed,
+                "scroll ran but independent readback was not verified",
+            )
+        }))
+    }
+
 }
 
 #[async_trait]
@@ -2077,10 +2221,7 @@ impl AppBackend for MacosAppBackend {
                     "ref scroll cannot use window order; observe and pass a generation-bound ref",
                 ));
             }
-            return Err(VcuError::coded(
-                ErrorCode::InvalidInput,
-                "bound scroll is not routed; refusing to scroll a different window",
-            ));
+            return self.scroll_bound(id, r#ref, dy, false, None, None);
         }
         let name = Self::process_name_from_id(id);
         self.ensure_operable(&name)?;
@@ -2148,8 +2289,28 @@ impl AppBackend for MacosAppBackend {
             "dy": dy,
             "result": out,
             "input_path": "ax_scroll",
-            "os_cursor_used": false
+            "os_cursor_used": false,
+            "hid_injected": false
         }))
+    }
+
+    async fn scroll_observed(
+        &mut self,
+        id: &str,
+        element_ref: &str,
+        dy: i32,
+        dry_run: bool,
+        scene_id: Option<&str>,
+        capture_id: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        scene::refuse_live_mutation(element_ref)?;
+        if !binding::is_bound_ref(element_ref) {
+            return Err(VcuError::coded(
+                ErrorCode::InvalidInput,
+                "ref scroll cannot use window order; observe and pass a generation-bound ref",
+            ));
+        }
+        self.scroll_bound(id, element_ref, dy, dry_run, scene_id, capture_id)
     }
 
     async fn capture_bound_window(&self, window_id: u64, frame: [f64; 4]) -> VcuResult<Option<AppCapture>> {
