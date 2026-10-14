@@ -4,40 +4,99 @@ import Foundation
 
 final class MarkedButton: NSButton {
     let mark: String
+    let countsPresses: Bool
+    var hangsNextPress = false
+    var slowsNextPress = false
+    var edgesNextPress = false
     var presses = 0
 
-    init(mark: String, frame: NSRect) {
+    init(mark: String, frame: NSRect, title: String = "Go", countsPresses: Bool = true) {
         self.mark = mark
+        self.countsPresses = countsPresses
         super.init(frame: frame)
-        title = "Go"
+        self.title = title
         bezelStyle = .rounded
         setButtonType(.momentaryPushIn)
         identifier = NSUserInterfaceItemIdentifier(mark)
-        target = self
-        action = #selector(notePress)
+        if countsPresses {
+            target = self
+            action = #selector(notePress)
+        }
         setAccessibilityElement(true)
         setAccessibilityIdentifier(mark)
-        setAccessibilityLabel("Go")
-        setAccessibilityTitle("Go")
-        setAccessibilityHelp(mark)
+        setAccessibilityLabel(title)
+        setAccessibilityTitle(title)
+        publishPressState()
     }
 
     required init?(coder: NSCoder) { nil }
 
     override func accessibilityIdentifier() -> String { mark }
 
-    override func accessibilityValue() -> Any? { mark }
+    override func accessibilityHelp() -> String? { "presses=\(presses)" }
+
+    override func accessibilityValue() -> Any? { "presses=\(presses)" }
 
     private var lastPress = Date.distantPast
 
+    func publishPressState() {
+        let state = "presses=\(presses)"
+        setAccessibilityHelp(state)
+        setAccessibilityValue(state)
+    }
+
     @objc func notePress() {
+        guard countsPresses else { return }
         let now = Date()
         if now.timeIntervalSince(lastPress) < 0.05 { return }
         lastPress = now
         presses += 1
+        publishPressState()
+    }
+
+    func armHang() {
+        hangsNextPress = true
+        slowsNextPress = false
+        edgesNextPress = false
+    }
+
+    func armSlow() {
+        slowsNextPress = true
+        hangsNextPress = false
+        edgesNextPress = false
+    }
+
+    func armEdge() {
+        edgesNextPress = true
+        hangsNextPress = false
+        slowsNextPress = false
     }
 
     override func accessibilityPerformPress() -> Bool {
+        if hangsNextPress {
+            hangsNextPress = false
+            slowsNextPress = false
+            // System Events abandons AXPress after about 1.6s and returns success.
+            // Stay past that abandon, then return so the next read is not blocked.
+            // A slow return is a hang only when AXHelp/AXValue did not change.
+            Thread.sleep(forTimeInterval: 1.7)
+            return false
+        }
+        if edgesNextPress {
+            edgesNextPress = false
+            Thread.sleep(forTimeInterval: 1.5)
+            guard countsPresses else { return false }
+            notePress()
+            return true
+        }
+        if slowsNextPress {
+            slowsNextPress = false
+            Thread.sleep(forTimeInterval: 1.2)
+            guard countsPresses else { return false }
+            notePress()
+            return true
+        }
+        guard countsPresses else { return false }
         notePress()
         return true
     }
@@ -97,6 +156,28 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
         let button = MarkedButton(mark: mark, frame: NSRect(x: 24, y: 80, width: 120, height: 32))
         window.contentView?.addSubview(button)
         buttons[mark] = button
+        if key == "a" {
+            let fail = MarkedButton(
+                mark: "go-fail",
+                frame: NSRect(x: 160, y: 80, width: 120, height: 32),
+                title: "Nope",
+                countsPresses: false
+            )
+            window.contentView?.addSubview(fail)
+            buttons["go-fail"] = fail
+            let locked = NSTextField(frame: NSRect(x: 24, y: 40, width: 180, height: 24))
+            locked.stringValue = "locked"
+            locked.isEditable = false
+            locked.isSelectable = false
+            locked.isBezeled = false
+            locked.drawsBackground = false
+            locked.identifier = NSUserInterfaceItemIdentifier("locked")
+            locked.setAccessibilityElement(true)
+            locked.setAccessibilityIdentifier("locked")
+            locked.setAccessibilityLabel("Locked")
+            locked.setAccessibilityValue("locked")
+            window.contentView?.addSubview(locked)
+        }
         window.orderFrontRegardless()
         windows[key] = window
     }
@@ -145,6 +226,15 @@ final class FixtureDelegate: NSObject, NSApplicationDelegate {
             ack(statusBody())
         case "reset":
             rebuild()
+            ack(statusBody())
+        case "arm-hang":
+            buttons["go-a"]?.armHang()
+            ack(statusBody())
+        case "arm-slow":
+            buttons["go-a"]?.armSlow()
+            ack(statusBody())
+        case "arm-edge":
+            buttons["go-a"]?.armEdge()
             ack(statusBody())
         default:
             ack(["ok": false, "error": "unknown command"])

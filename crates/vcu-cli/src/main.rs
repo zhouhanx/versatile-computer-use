@@ -603,6 +603,14 @@ enum AppCmd {
         #[arg(long = "ref")]
         target_ref: String,
     },
+    SetValue {
+        id: String,
+        #[arg(long = "ref")]
+        target_ref: String,
+        value: String,
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
     Focus {
         id: String,
         #[arg(long, default_value_t = false)]
@@ -1024,6 +1032,21 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                     &paths,
                     "/v1/app/invoke",
                     json!({"id": id, "ref": target_ref}),
+                )
+                .await?;
+                println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                Ok(ok_exit(&v))
+            }
+            AppCmd::SetValue {
+                id,
+                target_ref,
+                value,
+                dry_run,
+            } => {
+                let v = api_post(
+                    &paths,
+                    "/v1/app/set-value",
+                    json!({"id": id, "ref": target_ref, "value": value, "dry_run": dry_run}),
                 )
                 .await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());

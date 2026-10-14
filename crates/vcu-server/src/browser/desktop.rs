@@ -625,7 +625,6 @@ impl BrowserBackend for DesktopBackend {
             return Err(Self::settings_readonly_err());
         }
         if let Some(role) = self.cached_role(tab_id, r) {
-            let textedit = tab_id.to_ascii_lowercase().contains("textedit");
             let notepad = tab_id.to_ascii_lowercase().contains("notepad");
             let terminal = {
                 let t = tab_id.to_ascii_lowercase();
@@ -635,7 +634,7 @@ impl BrowserBackend for DesktopBackend {
                     || t.contains("conhost")
                     || t.contains("powershell")
             };
-            if !is_editable_ax_role(&role) && !textedit && !notepad && !terminal {
+            if !is_editable_ax_role(&role) && !notepad && !terminal {
                 return Err(VcuError::coded(
                     ErrorCode::InvalidInput,
                     format!(

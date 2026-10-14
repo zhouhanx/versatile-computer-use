@@ -23,6 +23,9 @@ pub struct BoundElement {
     pub name: String,
     pub path: Vec<u32>,
     pub identifier: Option<String>,
+    pub actions: Vec<String>,
+    pub editable: Option<bool>,
+    pub value: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -139,6 +142,9 @@ impl SceneBindings {
                     name: el.name.clone(),
                     path: steps,
                     identifier: el.ax_identifier.clone(),
+                    actions: el.actions.clone(),
+                    editable: el.editable,
+                    value: el.value.clone(),
                 },
             );
             bound += 1;
@@ -465,6 +471,7 @@ pub enum ActionReport {
     Missing,
     Ambiguous,
     Failed(String),
+    Read(String),
 }
 
 pub fn interpret_action(raw: &str) -> VcuResult<ActionReport> {
@@ -501,6 +508,14 @@ pub fn interpret_action(raw: &str) -> VcuResult<ActionReport> {
     }
 }
 
+pub fn interpret_read(raw: &str) -> VcuResult<ActionReport> {
+    let line = raw.lines().find(|l| !l.trim().is_empty()).unwrap_or("").trim();
+    if let Some(value) = line.strip_prefix("READ|") {
+        return Ok(ActionReport::Read(value.to_string()));
+    }
+    interpret_action(line)
+}
+
 pub fn action_error(report: &ActionReport) -> VcuError {
     match report {
         ActionReport::Stale => VcuError::coded(
@@ -522,10 +537,110 @@ pub fn action_error(report: &ActionReport) -> VcuError {
     }
 }
 
+pub fn clean_ax_text(raw: &str) -> String {
+    if raw == "missing value" {
+        return String::new();
+    }
+    let mut text: String = raw
+        .chars()
+        .map(|ch| match ch {
+            '\n' | '\r' | '\t' | '|' => ' ',
+            other => other,
+        })
+        .collect();
+    if text.chars().count() > 180 {
+        text = text.chars().take(180).collect();
+    }
+    text
+}
+
+pub fn is_timeout(err: &VcuError) -> bool {
+    let blob = format!("{} {}", err.message(), err.detail().unwrap_or_default());
+    let lower = blob.to_ascii_lowercase();
+    lower.contains("timed out") || lower.contains("timeout")
+}
+
+fn has_action(element: &BoundElement, name: &str) -> bool {
+    element
+        .actions
+        .iter()
+        .any(|action| action.eq_ignore_ascii_case(name))
+}
+
+pub fn require_bound_capability(element: &BoundElement, set_value: Option<&str>) -> VcuResult<()> {
+    if set_value.is_some() {
+        if element.editable == Some(true) || has_action(element, "AXSetValue") {
+            return Ok(());
+        }
+        return Err(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "target is not editable and does not expose AXSetValue; refusing to redirect to another control",
+        ));
+    }
+    if has_action(element, "AXPress") {
+        return Ok(());
+    }
+    Err(VcuError::coded(
+        ErrorCode::InvalidInput,
+        "target does not expose AXPress; refusing to guess another action",
+    ))
+}
+
+pub fn confirm_readback(expected: Option<&str>, before: Option<&str>, after: &str) -> VcuResult<()> {
+    let after_clean = clean_ax_text(after);
+    let after_trimmed = after_clean.trim();
+    if let Some(value) = expected {
+        let want = clean_ax_text(value);
+        let want_trimmed = want.trim();
+        if after_trimmed == want_trimmed && !want_trimmed.is_empty() {
+            return Ok(());
+        }
+        return Err(VcuError::with_detail(
+            ErrorCode::ActionFailed,
+            "set ran but independent readback did not match; refusing to treat the call as success",
+            format!("expected={want_trimmed} readback={after_trimmed}"),
+        ));
+    }
+    let before = clean_ax_text(before.unwrap_or(""));
+    if !after_trimmed.is_empty() && after_trimmed != before.trim() {
+        return Ok(());
+    }
+    Err(VcuError::with_detail(
+        ErrorCode::ActionFailed,
+        "press ran but independent readback did not change; refusing to treat the call as success",
+        format!("before={} readback={after_trimmed}", before.trim()),
+    ))
+}
+
+const AX_PRESS_ABANDON_SECONDS: &str = "1.45";
+
 pub fn ax_bound_action_script(
     prepared: &PreparedAction,
     dry_run: bool,
     set_value: Option<&str>,
+) -> String {
+    ax_bound_script(prepared, dry_run, set_value, false, None)
+}
+
+pub fn ax_bound_action_script_with_before(
+    prepared: &PreparedAction,
+    dry_run: bool,
+    set_value: Option<&str>,
+    before: Option<&str>,
+) -> String {
+    ax_bound_script(prepared, dry_run, set_value, false, before)
+}
+
+pub fn ax_bound_read_script(prepared: &PreparedAction) -> String {
+    ax_bound_script(prepared, true, None, true, None)
+}
+
+fn ax_bound_script(
+    prepared: &PreparedAction,
+    dry_run: bool,
+    set_value: Option<&str>,
+    read_only: bool,
+    before: Option<&str>,
 ) -> String {
     let process = super::scene::applescript_string(&prepared.process);
     let title = super::scene::applescript_string(&prepared.title);
@@ -533,6 +648,7 @@ pub fn ax_bound_action_script(
     let name = super::scene::applescript_string(&prepared.element.name);
     let ident = super::scene::applescript_string(prepared.element.identifier.as_deref().unwrap_or(""));
     let value = super::scene::applescript_string(set_value.unwrap_or(""));
+    let before = super::scene::applescript_string(before.unwrap_or(""));
     let path = if prepared.element.path.is_empty() {
         "{}".to_string()
     } else {
@@ -548,13 +664,37 @@ pub fn ax_bound_action_script(
         )
     };
     let dry = if dry_run { "true" } else { "false" };
-    let do_set = if set_value.is_some() && !dry_run { "true" } else { "false" };
+    let do_set = if set_value.is_some() && !dry_run && !read_only {
+        "true"
+    } else {
+        "false"
+    };
+    let read_branch = if read_only {
+        r#"set vcuState to ""
+    try
+      set vcuState to my vcuClean(value of attribute "AXHelp" of vcuEl)
+    end try
+    if vcuState is "" then
+      try
+        set vcuState to my vcuClean(value of attribute "AXValue" of vcuEl)
+      end try
+    end if
+    if vcuState is "" then
+      try
+        set vcuState to my vcuClean(value of vcuEl as text)
+      end try
+    end if
+    return "READ|" & vcuState"#
+    } else {
+        ""
+    };
     let x = prepared.frame[0].round() as i32;
     let y = prepared.frame[1].round() as i32;
     let width = prepared.frame[2].round() as i32;
     let height = prepared.frame[3].round() as i32;
     format!(
-        r#"on vcuClean(t)
+        r#"use framework "Foundation"
+on vcuClean(t)
   set oldDelims to AppleScript's text item delimiters
   try
     set t to t as text
@@ -617,22 +757,23 @@ tell application "System Events"
     end repeat
     if vcuHits is 0 then return "WINMISSING"
     if vcuHits > 1 then return "WINAMBIG"
-    set vcuEl to vcuWin
+    set vcuCursor to vcuWin
     set vcuSteps to {path}
     repeat with vcuStep in vcuSteps
       try
-        set vcuKids to UI elements of vcuEl
+        set vcuKids to UI elements of vcuCursor
       on error
         return "PATHMISSING"
       end try
       set vcuI to vcuStep as integer
       if ((vcuI < 0) or (vcuI >= (count of vcuKids))) then return "PATHMISSING"
       try
-        set vcuEl to item (vcuI + 1) of vcuKids
+        set vcuCursor to item (vcuI + 1) of vcuKids
       on error
         return "PATHMISSING"
       end try
     end repeat
+    set vcuEl to vcuCursor
     set r to ""
     set nm to ""
     set ident to ""
@@ -667,6 +808,7 @@ tell application "System Events"
     if "{ident}" is not "" then
       if ident is not "{ident}" then return "STALE|" & r & "|" & nm & "|" & ident
     end if
+    {read_branch}
     if {dry} then return "DRY|" & r & "|" & nm & "|" & ident
     if {do_set} then
       try
@@ -676,10 +818,24 @@ tell application "System Events"
         return "ERROR|" & errMsg
       end try
     end if
+    set vcuBefore to "{before}"
+    set vcuPressStarted to current application's NSDate's timeIntervalSinceReferenceDate()
     try
       perform action "AXPress" of vcuEl
+      set vcuPressElapsed to (current application's NSDate's timeIntervalSinceReferenceDate()) - vcuPressStarted
+      if vcuPressElapsed >= {abandon} then
+        {changed_branch}
+        delay 5
+        return "HUNG|" & r & "|" & nm & "|" & ident
+      end if
       return "PRESSED|" & r & "|" & nm & "|" & ident
     on error errMsg
+      set vcuPressElapsed to (current application's NSDate's timeIntervalSinceReferenceDate()) - vcuPressStarted
+      if vcuPressElapsed >= {abandon} then
+        {changed_branch}
+        delay 5
+        return "HUNG|" & errMsg
+      end if
       return "ERROR|" & errMsg
     end try
   end tell
@@ -698,6 +854,36 @@ end tell
         dry = dry,
         do_set = do_set,
         value = value,
+        read_branch = read_branch,
+        abandon = AX_PRESS_ABANDON_SECONDS,
+        before = before,
+        changed_branch = r#"set vcuSeen to false
+        set vcuTries to 0
+        repeat while vcuTries < 3
+          set vcuAfter to ""
+          try
+            set vcuAfter to my vcuClean(value of attribute "AXHelp" of vcuEl)
+          end try
+          if vcuAfter is "" then
+            try
+              set vcuAfter to my vcuClean(value of attribute "AXValue" of vcuEl)
+            end try
+          end if
+          if vcuAfter is "" then
+            try
+              set vcuAfter to my vcuClean(value of vcuEl as text)
+            end try
+          end if
+          if vcuAfter is not "" and vcuAfter is not vcuBefore then
+            set vcuSeen to true
+            exit repeat
+          end if
+          set vcuTries to vcuTries + 1
+          if vcuTries < 3 then delay 0.2
+        end repeat
+        if vcuSeen then
+          return "PRESSED|" & r & "|" & nm & "|" & ident
+        end if"#,
     )
 }
 
@@ -847,6 +1033,9 @@ mod tests {
                 name: "Go".into(),
                 path: vec![0, 1],
                 identifier: Some("go-a".into()),
+                actions: vec!["AXPress".into()],
+                editable: Some(false),
+                value: None,
             },
             capture_id: None,
         };
@@ -860,6 +1049,27 @@ mod tests {
         assert!(dry.contains("STALE|"));
         let live = ax_bound_action_script(&prepared, false, None);
         assert!(live.contains("if false then return \"DRY|\""));
+        assert!(live.contains(&format!(
+            "vcuPressElapsed >= {AX_PRESS_ABANDON_SECONDS}"
+        )));
+        assert!(!live.contains("vcuPressElapsed >= 1 then"));
+        assert!(!live.contains("on vcuChanged"));
+        assert!(live.contains("repeat while vcuTries < 3"));
+        assert!(live.contains("value of attribute \"AXHelp\" of vcuEl"));
+        let tell_at = live.find("tell application \"System Events\"").unwrap();
+        let read_at = live.find("value of attribute \"AXHelp\" of vcuEl").unwrap();
+        assert!(read_at > tell_at);
+        assert!(live.contains("delay 5"));
+        assert!(live.contains("return \"HUNG|\""));
+        let witnessed = ax_bound_action_script_with_before(&prepared, false, None, Some("presses=1"));
+        assert!(witnessed.contains("set vcuBefore to \"presses=1\""));
+        assert!(matches!(
+            interpret_action("HUNG|AXButton|Go|go-a").unwrap(),
+            ActionReport::Failed(_)
+        ));
+        assert!(!live.contains("text area 1"));
+        assert!(!live.contains("UI elements of vcuEl"));
+        assert!(!live.to_ascii_lowercase().contains("keystroke"));
         assert_eq!(
             interpret_action("STALE|AXButton|Go|go-decoy").unwrap(),
             ActionReport::Stale
@@ -925,5 +1135,61 @@ mod tests {
                 Some([10.0, 20.0, 400.0, 300.0]),
             )
             .is_err());
+    }
+
+    fn prepared(actions: Vec<String>, editable: Option<bool>) -> PreparedAction {
+        PreparedAction {
+            token: "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
+            scene_id: "ax:1:2:3".into(),
+            app_id: "proc:Fixture:1".into(),
+            process: "TextEdit".into(),
+            window_id: 7,
+            frame: [1.0, 2.0, 30.0, 40.0],
+            title: "notes".into(),
+            element: BoundElement {
+                local_ref: "n2".into(),
+                role: "AXTextArea".into(),
+                name: "body".into(),
+                path: vec![1, 0],
+                identifier: None,
+                actions,
+                editable,
+                value: None,
+            },
+            capture_id: None,
+        }
+    }
+
+    #[test]
+    fn capability_selects_press_or_set_and_refuses_redirect() {
+        let press = prepared(vec!["AXPress".into()], Some(false));
+        assert!(require_bound_capability(&press.element, None).is_ok());
+        let refused = require_bound_capability(&press.element, Some("marker")).unwrap_err();
+        assert!(refused.message().contains("refusing to redirect"));
+        let text = prepared(vec!["AXSetValue".into()], Some(true));
+        assert!(require_bound_capability(&text.element, Some("marker")).is_ok());
+        let missing = require_bound_capability(&text.element, None).unwrap_err();
+        assert!(missing.message().contains("AXPress"));
+        let script = ax_bound_action_script(&text, false, Some("marker"));
+        assert!(script.contains("set value of vcuEl"));
+        assert!(!script.contains("text area 1"));
+        assert!(!script.contains("UI elements of vcuEl"));
+        let read = ax_bound_read_script(&text);
+        let press_at = read.find("perform action \"AXPress\"").unwrap();
+        let read_at = read.find("return \"READ|\"").unwrap();
+        assert!(read_at < press_at);
+        assert_eq!(interpret_read("READ|presses=1").unwrap(), ActionReport::Read("presses=1".into()));
+    }
+
+    #[test]
+    fn readback_is_not_the_same_as_invocation_success() {
+        assert!(confirm_readback(Some("VCU-MAC-004"), None, "VCU-MAC-004").is_ok());
+        assert!(confirm_readback(Some("VCU-MAC-004"), None, "VCU-MAC-004 ").is_ok());
+        let mismatch = confirm_readback(Some("VCU-MAC-004"), None, "other").unwrap_err();
+        assert!(mismatch.message().contains("independent readback"));
+        assert!(confirm_readback(None, Some("presses=0"), "presses=1").is_ok());
+        let unchanged = confirm_readback(None, Some("presses=0"), "presses=0").unwrap_err();
+        assert!(unchanged.message().contains("did not change"));
+        assert!(confirm_readback(None, Some(""), "").is_err());
     }
 }

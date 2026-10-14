@@ -492,6 +492,16 @@ fn uses_menu_paste(process: &str) -> bool {
     p == "terminal" || p.contains("ghostty")
 }
 
+fn refuse_command_newline(process: &str, value: &str) -> VcuResult<()> {
+    if uses_menu_paste(process) && (value.contains('\n') || value.contains('\r')) {
+        return Err(VcuError::coded(
+            ErrorCode::FocusPolicyViolation,
+            "Terminal paste refuses newlines; that would execute a command",
+        ));
+    }
+    Ok(())
+}
+
 fn ax_bfs_max_depth(process: &str) -> i32 {
     if process.to_ascii_lowercase().contains("finder") || ax_is_notes(process) {
         4
@@ -1056,24 +1066,8 @@ fn ax_terminal_paste_script(process: &str, val: &str) -> String {
 }
 
 fn ax_textedit_document_script(val: &str) -> String {
-    format!(
-        r#"
-            tell application "System Events"
-              tell process "TextEdit"
-                try
-                  set ta to text area 1 of window 1
-                  try
-                    set focused of ta to true
-                  end try
-                  set value of ta to "{val}"
-                  return "ok-textedit-textarea"
-                on error errMsg
-                  return "error:" & errMsg
-                end try
-              end tell
-            end tell
-            "#
-    )
+    let _ = val;
+    "error:redirect-refused:text area 1".to_string()
 }
 
 fn ax_set_value_script(process: &str, eref: &str, val: &str) -> String {
@@ -1081,46 +1075,27 @@ fn ax_set_value_script(process: &str, eref: &str, val: &str) -> String {
         process,
         &format!(
             r#"                        if ("e" & n) is "{eref}" then
-                          set vcuTarget to el
-                          set vcuRole to r
-                          if (r does not contain "TextArea") and (r does not contain "text area") and (r does not contain "TextField") and (r does not contain "text field") and (r does not contain "SearchField") and (r does not contain "ComboBox") and (r is not "text") then
-                            try
-                              set vcuKids to UI elements of el
-                              repeat with vcuKidIdx from 1 to (count of vcuKids)
-                                set vcuKid to item vcuKidIdx of vcuKids
-                                set vcuKr to ""
-                                try
-                                  set vcuKr to role of vcuKid as text
-                                end try
-                                if (vcuKr contains "TextArea") or (vcuKr contains "text area") or (vcuKr contains "TextField") or (vcuKr contains "text field") then
-                                  set vcuTarget to vcuKid
-                                  set vcuRole to vcuKr
-                                  exit repeat
-                                end if
-                              end repeat
-                            end try
-                          end if
                           set vcuOkRole to false
-                          if vcuRole contains "TextArea" then set vcuOkRole to true
-                          if vcuRole contains "text area" then set vcuOkRole to true
-                          if vcuRole contains "TextField" then set vcuOkRole to true
-                          if vcuRole contains "text field" then set vcuOkRole to true
-                          if vcuRole contains "SearchField" then set vcuOkRole to true
-                          if vcuRole contains "ComboBox" then set vcuOkRole to true
-                          if vcuRole is "text" then set vcuOkRole to true
+                          if r contains "TextArea" then set vcuOkRole to true
+                          if r contains "text area" then set vcuOkRole to true
+                          if r contains "TextField" then set vcuOkRole to true
+                          if r contains "text field" then set vcuOkRole to true
+                          if r contains "SearchField" then set vcuOkRole to true
+                          if r contains "ComboBox" then set vcuOkRole to true
+                          if r is "text" then set vcuOkRole to true
                           if vcuOkRole is false then
-                            return "error:not-text:" & vcuRole
+                            return "error:not-text:" & r
                           end if
                           try
-                            set focused of vcuTarget to true
+                            set focused of el to true
                           end try
                           try
-                            set value of vcuTarget to "{val}"
-                            return "ok:" & vcuRole
+                            set value of el to "{val}"
+                            return "ok:" & r
                           on error
                             try
-                              set value of attribute "AXValue" of vcuTarget to "{val}"
-                              return "ok-axvalue:" & vcuRole
+                              set value of attribute "AXValue" of el to "{val}"
+                              return "ok-axvalue:" & r
                             on error errMsg
                               return "error:" & errMsg
                             end try
@@ -1441,6 +1416,8 @@ fn bound_result(
     name: &str,
     identifier: &str,
     raw: &str,
+    verified: bool,
+    readback: Option<&str>,
 ) -> serde_json::Value {
     serde_json::json!({
         "ok": true,
@@ -1454,6 +1431,8 @@ fn bound_result(
         "result": raw,
         "input_path": input_path,
         "dry_run": dry_run,
+        "verified": verified,
+        "readback": readback,
         "os_cursor_used": false,
         "hid_injected": false,
         "focus_stolen": false,
@@ -1509,6 +1488,67 @@ fn scene_snapshot(
 
 
 impl MacosAppBackend {
+    fn run_bound_script(
+        &self,
+        script: &str,
+        prepared: &binding::PreparedAction,
+        capture_id: Option<&str>,
+    ) -> VcuResult<String> {
+        match Self::run_osascript_timeout(script, 4000) {
+            Ok(out) => Ok(out),
+            Err(err) if binding::is_timeout(&err) => {
+                self.bindings.consume(&prepared.token, capture_id);
+                Err(err)
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    fn read_bound_once(&self, prepared: &binding::PreparedAction) -> VcuResult<String> {
+        let script = binding::ax_bound_read_script(prepared);
+        let out = Self::run_osascript_timeout(&script, 4000)?;
+        match binding::interpret_read(&out)? {
+            ActionReport::Read(value) => Ok(value),
+            other => Err(binding::action_error(&other)),
+        }
+    }
+
+    fn confirm_after_action(
+        &self,
+        prepared: &binding::PreparedAction,
+        capture_id: Option<&str>,
+        expected: Option<&str>,
+        before: Option<&str>,
+    ) -> VcuResult<String> {
+        let mut last_error = None;
+        for attempt in 0..3 {
+            if attempt > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+            }
+            match self.read_bound_once(prepared) {
+                Ok(after) => match binding::confirm_readback(expected, before, &after) {
+                    Ok(()) => return Ok(after),
+                    Err(err) => last_error = Some(err),
+                },
+                Err(err) if binding::is_timeout(&err) => {
+                    self.bindings.consume(&prepared.token, capture_id);
+                    return Err(err);
+                }
+                Err(err) => {
+                    self.bindings.consume(&prepared.token, capture_id);
+                    return Err(err);
+                }
+            }
+        }
+        self.bindings.consume(&prepared.token, capture_id);
+        Err(last_error.unwrap_or_else(|| {
+            VcuError::coded(
+                ErrorCode::ActionFailed,
+                "action ran but independent readback was not verified",
+            )
+        }))
+    }
+
     fn act_bound(
         &self,
         id: &str,
@@ -1521,12 +1561,7 @@ impl MacosAppBackend {
         let name = Self::process_name_from_id(id);
         self.ensure_operable(&name)?;
         if let Some(value) = set_value {
-            if uses_menu_paste(&name) && (value.contains('\n') || value.contains('\r')) {
-                return Err(VcuError::coded(
-                    ErrorCode::FocusPolicyViolation,
-                    "Terminal paste refuses newlines; that would execute a command",
-                ));
-            }
+            refuse_command_newline(&name, value)?;
         }
         let pid = Self::pid_from_id(id).unwrap_or(0);
         let window_id = self.bindings.window_of(element_ref)?;
@@ -1537,51 +1572,92 @@ impl MacosAppBackend {
         let prepared = self
             .bindings
             .prepare_action(id, element_ref, scene_id, capture_id, live)?;
-        let script = binding::ax_bound_action_script(&prepared, dry_run, set_value);
-        let out = Self::run_osascript_timeout(&script, 4000)?;
-        let report = binding::interpret_action(&out)?;
-        match report {
-            ActionReport::Dry { role, name, identifier } if dry_run => Ok(bound_result(
-                &prepared.process,
-                element_ref,
-                &prepared,
-                true,
-                "bound_dry_run",
-                &role,
-                &name,
-                &identifier,
-                &out,
-            )),
-            ActionReport::Pressed { role, name, identifier } if set_value.is_none() && !dry_run => {
-                self.bindings.consume(&prepared.token, capture_id);
-                Ok(bound_result(
+        binding::require_bound_capability(&prepared.element, set_value)?;
+        if dry_run {
+            let script = binding::ax_bound_action_script(&prepared, true, set_value);
+            let out = self.run_bound_script(&script, &prepared, capture_id)?;
+            let report = binding::interpret_action(&out)?;
+            return match report {
+                ActionReport::Dry {
+                    role,
+                    name,
+                    identifier,
+                } => Ok(bound_result(
                     &prepared.process,
                     element_ref,
                     &prepared,
-                    false,
-                    "bound_ax_press",
+                    true,
+                    "bound_dry_run",
                     &role,
                     &name,
                     &identifier,
                     &out,
-                ))
-            }
-            ActionReport::Set { role, name, identifier } if set_value.is_some() && !dry_run => {
-                self.bindings.consume(&prepared.token, capture_id);
-                Ok(bound_result(
-                    &prepared.process,
-                    element_ref,
-                    &prepared,
                     false,
-                    "bound_ax_set_value",
-                    &role,
-                    &name,
-                    &identifier,
-                    &out,
-                ))
-            }
-            other => Err(binding::action_error(&other)),
+                    None,
+                )),
+                ActionReport::Stale | ActionReport::Missing | ActionReport::Ambiguous => {
+                    Err(binding::action_error(&report))
+                }
+                other => {
+                    self.bindings.consume(&prepared.token, capture_id);
+                    Err(binding::action_error(&other))
+                }
+            };
         }
+        let before = if set_value.is_none() {
+            match self.read_bound_once(&prepared) {
+                Ok(value) => Some(value),
+                Err(err) if binding::is_timeout(&err) => {
+                    self.bindings.consume(&prepared.token, capture_id);
+                    return Err(err);
+                }
+                Err(err) => return Err(err),
+            }
+        } else {
+            None
+        };
+        let script = binding::ax_bound_action_script_with_before(&prepared, false, set_value, before.as_deref());
+        let out = self.run_bound_script(&script, &prepared, capture_id)?;
+        let report = binding::interpret_action(&out)?;
+        let (input_path, role, element_name, identifier) = match report {
+            ActionReport::Pressed {
+                role,
+                name,
+                identifier,
+            } if set_value.is_none() => ("bound_ax_press", role, name, identifier),
+            ActionReport::Set {
+                role,
+                name,
+                identifier,
+            } if set_value.is_some() => ("bound_ax_set_value", role, name, identifier),
+            ActionReport::Stale | ActionReport::Missing | ActionReport::Ambiguous => {
+                return Err(binding::action_error(&report));
+            }
+            other => {
+                self.bindings.consume(&prepared.token, capture_id);
+                return Err(binding::action_error(&other));
+            }
+        };
+        let readback = self.confirm_after_action(
+            &prepared,
+            capture_id,
+            set_value,
+            before.as_deref(),
+        )?;
+        self.bindings.consume(&prepared.token, capture_id);
+        Ok(bound_result(
+            &prepared.process,
+            element_ref,
+            &prepared,
+            false,
+            input_path,
+            &role,
+            &element_name,
+            &identifier,
+            &out,
+            true,
+            Some(&readback),
+        ))
     }
 
 }
@@ -1875,6 +1951,7 @@ impl AppBackend for MacosAppBackend {
             "ax_point": {"x": x, "y": y},
             "result": out,
             "input_path": "ax_position_press",
+            "verified": false,
             "os_cursor_used": false,
             "hid_injected": false
         }))
@@ -1946,7 +2023,20 @@ impl AppBackend for MacosAppBackend {
     }
 
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value> {
-        self.act_bound(id, element_ref, false, None, None, Some(value))
+        self.set_value_observed(id, element_ref, value, false, None, None)
+            .await
+    }
+
+    async fn set_value_observed(
+        &mut self,
+        id: &str,
+        element_ref: &str,
+        value: &str,
+        dry_run: bool,
+        scene_id: Option<&str>,
+        capture_id: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        self.act_bound(id, element_ref, dry_run, scene_id, capture_id, Some(value))
     }
 
     async fn reveal_path(&mut self, id: &str, path: &str) -> VcuResult<serde_json::Value> {
@@ -2312,9 +2402,16 @@ mod tests {
         assert!(setv.contains("not-text"));
         assert!(setv.contains("TextArea"));
         let te_doc = ax_textedit_document_script("hello");
+        assert!(te_doc.contains("redirect-refused"));
         assert!(te_doc.contains("text area 1"));
-        assert!(te_doc.contains("ok-textedit-textarea"));
+        assert!(!te_doc.contains("ok-textedit-textarea"));
+        assert!(!te_doc.contains("set value"));
         assert!(!te_doc.to_ascii_lowercase().contains("mouse"));
+        assert!(!setv.contains("vcuTarget"));
+        assert!(!setv.contains("text area 1 of window"));
+        let newline = refuse_command_newline("Terminal", "echo\nhi").unwrap_err();
+        assert_eq!(newline.code(), ErrorCode::FocusPolicyViolation);
+        assert!(refuse_command_newline("TextEdit", "hello\n").is_ok());
         let te = ax_snapshot_script("TextEdit");
         assert!(te.contains("ScrollArea"));
         assert!(te.contains("text area"));

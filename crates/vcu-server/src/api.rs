@@ -36,6 +36,7 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/app/windows", get(app_windows))
         .route("/v1/app/snapshot", post(app_snapshot))
         .route("/v1/app/invoke", post(app_invoke))
+        .route("/v1/app/set-value", post(app_set_value))
         .route("/v1/app/focus", post(app_focus))
         .route("/v1/doctor", get(doctor_handler))
         .route("/v1/browser/login-state", get(browser_login_state))
@@ -3884,6 +3885,67 @@ struct AppFocusReq {
     id: String,
     #[serde(default)]
     allow_focus_steal: bool,
+}
+
+#[derive(Deserialize)]
+struct AppSetValueReq {
+    id: String,
+    r#ref: String,
+    value: String,
+    #[serde(default)]
+    dry_run: bool,
+    #[serde(default)]
+    scene_id: Option<String>,
+    #[serde(default)]
+    capture_id: Option<String>,
+}
+
+async fn app_set_value(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<AppSetValueReq>,
+) -> impl IntoResponse {
+    if let Err(e) = require_auth(&headers, &state).await {
+        return err_response(e);
+    }
+    if let Err(e) = crate::app::scene::refuse_live_mutation(&req.r#ref) {
+        return err_response(e);
+    }
+    if req.value.trim().is_empty() {
+        return err_response(VcuError::coded(
+            ErrorCode::InvalidInput,
+            "set-value refuses an empty value",
+        ));
+    }
+    let mut backend = state.app_backend.write().await;
+    match backend
+        .set_value_observed(
+            &req.id,
+            &req.r#ref,
+            &req.value,
+            req.dry_run,
+            req.scene_id.as_deref(),
+            req.capture_id.as_deref(),
+        )
+        .await
+    {
+        Ok(v) => {
+            crate::audit::append(
+                &state.paths,
+                "app.set_value",
+                json!({"id": req.id, "ref": req.r#ref, "ok": true}),
+            );
+            Json(Envelope::ok(v)).into_response()
+        }
+        Err(e) => {
+            crate::audit::append(
+                &state.paths,
+                "app.set_value",
+                json!({"id": req.id, "ref": req.r#ref, "ok": false, "code": format!("{:?}", e.code())}),
+            );
+            err_response(e)
+        }
+    }
 }
 
 async fn app_focus(

@@ -517,6 +517,19 @@ pub trait AppBackend: Send + Sync {
         self.invoke(id, element_ref).await
     }
     async fn set_value(&mut self, id: &str, element_ref: &str, value: &str) -> VcuResult<serde_json::Value>;
+    /// Generation-checked set. Default ignores binding fields and calls set_value.
+    async fn set_value_observed(
+        &mut self,
+        id: &str,
+        element_ref: &str,
+        value: &str,
+        dry_run: bool,
+        scene_id: Option<&str>,
+        capture_id: Option<&str>,
+    ) -> VcuResult<serde_json::Value> {
+        let _ = (dry_run, scene_id, capture_id);
+        self.set_value(id, element_ref, value).await
+    }
     async fn capture_window(&self, id: &str) -> VcuResult<Option<AppCapture>>;
     /// Capture one CG window. Default none. Never prompts for TCC and never uses window order.
     async fn capture_bound_window(
