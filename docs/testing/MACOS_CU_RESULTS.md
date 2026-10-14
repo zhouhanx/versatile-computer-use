@@ -66,6 +66,35 @@
 - 没有领取 `MAC-003` 或 `BR-001`。没有结束会话 `01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
 
 
+
+## MAC-004
+
+更新：2026-10-14。最终绑定是干净 SHA `64daa23271f8d9375f4195b09a3c4acefd7cfa7f` 的 `.local/desktop-cu/mac-MAC-004.json`，`ok=true`，`dirty=false`，`completion_allowed=true`。代码提交就是这个 SHA。夹具是 `VCUAxBinding`，TextEdit 文档是 `VCU-MAC-004.txt`。
+
+| 验收 | 结果 | 证据 |
+| --- | --- | --- |
+| TextEdit 唯一标记独立读回 | pass | AppleScript 读回 `VCU-MAC-004-eb21c3ba`，`verified=true` |
+| 原生按钮改变可验证状态 | pass | `go-a` 从 0 到 1，读回 `presses=1`；`go-b` 仍是 0 |
+| 慢返回和边界返回保留 | pass | 1.2 秒按压 HTTP 1.862 秒，`go-a` 到 2；1.5 秒按压 HTTP 2.178 秒，`go-a` 到 3 |
+| 错误 ref 不动作 | pass | `e1` 和 `n1` HTTP 400 |
+| 只读和非零/未验证不改其他目标 | pass | locked set-value HTTP 400；`go-fail` HTTP 400 且计数为 0 |
+| 超时不改其他目标 | pass | HTTP 400，`elapsed_s=4.191`，`go-a` 仍是 3 |
+| 已消费 mutation 不重放 | pass | 按钮和 TextEdit 重放都是 HTTP 400 |
+| 终端换行门禁 | pass | HTTP 409，Terminal 进程前后都是空 |
+| 不移动系统光标 | pass | `os_cursor_used=false`，`hid_injected=false` |
+
+### 已跑命令
+
+- `python3 scripts/poc_mac_004_actions.py`：在干净 `64daa23` 复跑，`ok=true`，`dirty=false`。屏幕未锁。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
+- `cargo test -p vcu-server --offline --lib -- app::binding::tests`：6 passed。
+- `cargo test -p vcu-server --offline --lib -- ax_bfs_scripts_share_walk_and_avoid_entire_contents`：1 passed。
+
+### 不宣称
+
+- 不宣称 1.45 秒到 1.5 秒之间的每个时长都测过。测到的是夹具 1.2 秒慢按压和 1.5 秒边界按压。
+- 不宣称锁屏时这套动作仍可用。锁屏会让 POC 在启动前失败。
+- 不宣称 `MAC-005` 或 `BR-001` 已领取。没有结束既有 AWR 会话。
+
 ## MAC-003
 
 更新：2026-10-09。最终绑定是干净 SHA `2033326d03798122cdbf5d1e5478f02bd3fd11ff` 的 `.local/desktop-cu/mac-MAC-003.json`，`ok=true`，`dirty=false`。代码提交就是这个 SHA。夹具是 `VCUAxBinding` 的两个同名 `Go` 按钮，identifier 为 `go-a` 和 `go-b`。

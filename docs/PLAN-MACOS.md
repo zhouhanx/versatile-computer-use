@@ -61,12 +61,18 @@
 - 工作：按 pid/窗口身份观察和动作；Scene 代次绑定 ref。校验目标角色与身份，禁止重新 BFS 后只按 `eN` 执行；截图绑定窗口、几何、缩放和观察代次。明确移动/滚动/重建后的失效规则。
 - 验收：同一 App 两个自建窗口、同名控件、窗口重排/关闭、元素插入/移除、旧 Scene/ref/capture 的负向测试均不误操作；无明确目标且有歧义时拒绝；新观察后正确目标 dry-run 与 live 均可验证；无静默焦点抢占。
 
-### MAC-004：精确点击与输入、动作后读回（P0，planned）
+### MAC-004：精确点击与输入、动作后读回（P0，completed）
 
 - 前置：MAC-003。
 - 落点：`invoke`、`set_value`、`press_at_point`、HTTP/MCP 动作回执；拟新增 `scripts/poc_mac_004_actions.py`。
 - 工作：按 Scene 暴露的能力选择 AXPress/AXSetValue；收紧 TextEdit 首文本区回退，目标不能重定向。区分调用成功与结果已验证；非零、不可编辑、不可用动作及超时均诚实返回。
 - 验收：TextEdit 指定自建文档写入唯一标记并独立读回；测试按钮改变明确状态；错误 ref/只读控件/非零 AX 错误不改变其他控件；无自动重放；`os_cursor_used=false`；Return 与终端换行门禁保持。
+- 2026-10-14：干净 SHA `64daa23271f8d9375f4195b09a3c4acefd7cfa7f` 复跑 `scripts/poc_mac_004_actions.py`，`.local/desktop-cu/mac-MAC-004.json` 为 `ok=true`，`dirty=false`，`completion_allowed=true`。慢按压 HTTP 1.862 秒读回 `presses=2`；1.5 秒边界按压 HTTP 2.178 秒读回 `presses=3`；超时 HTTP 4.191 秒且 `go-a` 仍为 3。TextEdit 独立读回 `VCU-MAC-004-eb21c3ba`。终端换行 HTTP 409，未启动 Terminal。证据 `mac-004-actions` 已登记。下面的脏树记录已被这次取代。
+- 2026-10-14 18:01：`app::binding::tests` 6 passed，终端换行脚本测试 1 passed。单测不替代 17:58 真机报告，也不构成完成。
+- 2026-10-14 17:58：解锁后复跑 `.local/desktop-cu/mac-MAC-004.json`，`ok=true`，`completion_allowed=false`，工作树脏。`action_slow_press_kept` 1.862 秒 HTTP 200，读回 `presses=2`。`action_edge_press_kept` 2.18 秒 HTTP 200，读回 `presses=3`。`action_timeout_isolated` 4.185 秒返回 `ax command timed out`，`go-a` 仍为 3。TextEdit 独立读回 `VCU-MAC-004-7a150f03`。终端换行 HTTP 409，未启动 Terminal。源状态仍是 planned。干净 SHA 复跑并绑定证据前不是完成。
+- 2026-10-14 16:20：慢返回改为读 AXHelp/AXValue，相对动作前变化才算 `PRESSED`，否则仍进 4 秒杀手。新增 1.5 秒 `arm-edge` 与 `action_edge_press_kept`。当时屏幕锁定，POC 未复跑。该段已被 17:58 报告取代。
+- 2026-10-14 16:14：脏工作树当时报告 `ok=true`，文件是 `.local/desktop-cu/mac-MAC-004.json`，`completion_allowed=false`。放弃阈值收到 1.45 秒。`action_slow_press_kept` 在 1.872 秒返回 HTTP 200，读回 `presses=2`。`action_timeout_isolated` 在 4.187 秒返回 `ax command timed out`，计数未变，重放被消费。源状态仍是 planned。1.45 到约 1.6 秒的完成按压仍可能被误杀，未测。干净 SHA 复跑并绑定证据前不是完成。
+- 2026-10-14 16:04：已被 16:14 报告取代。当时阈值是 1 秒，`action_timeout_isolated` 在 4.21 秒进入杀手。
 
 ### MAC-005：目标滚动、等待和提取（P1，planned）
 

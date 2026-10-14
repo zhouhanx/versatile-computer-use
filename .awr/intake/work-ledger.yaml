@@ -1,4 +1,10 @@
 # VCU ledger
+# 最高准则（2026-10-14 用户明确；高于其他工作规则和历史交接停手说明）
+# 权威索引：AGENTS.md「最高准则」rule#supreme，以及 GOALS.md goal#vcu。冲突时以本准则为准。
+# 停手、挂起、阻塞或标记完成前必须 rtk proxy awr --project . status / ready 实查。
+# 仍有 Continue、Claimable 或可派发工作时必须如实报告，不得假装无事可做，也不得擅自领取。
+# 阻塞必须验真；假阻塞不得写成 blocked。禁止说谎。禁止未充分测试就标记完成。
+# 每个任务和阶段完成后必须落地台账标注和文档，并 awr source reindex。未写入权威源的进度不算已记录。
 # Current tracks: docs/PLAN-MAINLINES.md; macOS first (2026-09-28 user direction).
 # completed historical items retain their original evidence; they are not fresh test results.
 milestones:
@@ -1272,19 +1278,22 @@ work_items:
 
   - id: MAC-004
     title: macOS 精确点击输入与动作后读回
-    status: planned
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-macos-desktop
     required: true
     priority: P0
-    summary: 按 Scene 能力执行 AXPress/AXSetValue，收紧 TextEdit 首文本区回退；动作回执与验证结果分开。
+    summary: 64daa23 干净 POC ok=true。绑定按压在读回变化后保留 1.2 秒和 1.5 秒返回；超时不改其他目标；TextEdit 独立读回；终端换行拒绝。
     acceptance:
       - "指定 TextEdit 自建文档写入唯一标记并独立读回，原生测试按钮改变可验证状态"
       - "错误 ref/只读控件/非零 AX/超时不改其他目标，不把调用成功当业务成功"
       - "os_cursor_used=false；Return/终端换行门禁与 mutation 不重放测试通过"
-    next_action: MAC-003 完成后跑精确目标 POC，再补独立读回与动作能力检查
-    evidence: []
+    next_action: 已完成。下一开发项是 MAC-005，只在用户要求后领取。BR-001 可能已 ready，但没有用户要求就不要领取。不要结束会话 01M4WK83ATFMZE2GT1NR2J3H9Z、01M4DY9QJG6MXVSR03ZSV76SN1、01M4DJ9FZJA5A39ZS0CBB5V8GA 或 01M3KKZTFFQTZ3FF0DWWZHP5QV。
+    evidence:
+      - "docs/testing/MACOS_CU_RESULTS.md"
+      - "docs/testing/mac-MAC-004-completion.json"
+      - ".local/desktop-cu/mac-MAC-004.json"
     depends_on: ["MAC-003"]
 
   - id: MAC-005

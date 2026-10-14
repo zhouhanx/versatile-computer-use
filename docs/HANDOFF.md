@@ -1,5 +1,115 @@
 # 会话交接
 
+## 2026-10-14：MAC-004 完成
+
+`64daa23271f8d9375f4195b09a3c4acefd7cfa7f` 干净工作树复跑 `scripts/poc_mac_004_actions.py` 返回 `ok=true`，`dirty=false`，`completion_allowed=true`。证据 `mac-004-actions` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-005` 或 `BR-001`，除非用户明确要求。不要结束会话 `01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+- TextEdit 自建文件写入 `VCU-MAC-004-eb21c3ba`，AppleScript 独立读回一致。`go-a` live 从 0 到 1，`verified=true`，读回 `presses=1`。
+- 1.2 秒慢按压 HTTP 1.862 秒保留，`go-a` 从 1 到 2。1.5 秒边界按压 HTTP 2.178 秒保留，`go-a` 从 2 到 3。4.191 秒超时返回 `ax command timed out`，计数未变。
+- `e1`、`n1`、只读 set-value、`go-fail` 和已消费代次都拒绝，没有改其他目标。终端换行 HTTP 409，没有启动 Terminal。`os_cursor_used=false`，`hid_injected=false`。
+- 同一次干净 SHA 上，`app::binding::tests` 6 passed，`ax_bfs_scripts_share_walk_and_avoid_entire_contents` 1 passed。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
+- 下面 17:58 和 18:01 的脏树记录已被这次干净复跑取代，不能再当作当前结果。
+
+
+## 2026-10-14 18:01：绑定单测复跑通过，仍不是完成
+
+`cargo test -p vcu-server --lib --offline -- app::binding::tests` 6 passed。`ax_bfs_scripts_share_walk_and_avoid_entire_contents` 1 passed，覆盖终端换行拒绝和 TextEdit 换行放行。这只证明当前脏树的脚本门禁，不替代 17:58 真机报告，也不能把 `MAC-004` 标成 completed。
+
+## 2026-10-14 17:58：解锁后 MAC-004 脏树 POC ok=true，不是完成
+
+`.local/desktop-cu/mac-MAC-004.json` 最新报告 `ok=true`，`completion_allowed=false`。HEAD 仍是 `501d476`，工作树脏。源状态保持 `planned`，证据数 0。16:25 的“屏幕锁定、POC 未复跑”已被这次真机报告取代，但不能把脏树通过写成完成。
+
+- 屏幕已解锁，`CGSSessionScreenIsLocked=false`。复跑了 `scripts/poc_mac_004_actions.py`。24 项检查全部 pass。`os_cursor_used=false`。
+- 慢返回读回仍在 `tell application "System Events"` 内，最多 3 次、间隔 0.2 秒。`action_slow_press_kept`：HTTP 200，`elapsed_s=1.862`，`verified=true`，读回 `presses=2`，`go-a` 从 1 到 2。`action_edge_press_kept`：HTTP 200，`elapsed_s=2.18`，读回 `presses=3`，`go-a` 从 2 到 3。两条都没有进入 4 秒杀手。
+- `action_timeout_isolated`：HTTP 400，`elapsed_s=4.185`，错误是 `ax command timed out`。计数未变，`go-a=3`。`action_timeout_not_replayed`：0.002 秒返回 `scene generation was consumed`。
+- TextEdit 独立读回 `VCU-MAC-004-7a150f03`。终端换行返回 HTTP 409 `FocusPolicyViolation`，没有启动 Terminal。
+- POC 不再把系统光标像素完全相等当成这四项的通过条件。坐标仍写入报告。通过条件仍是 `os_cursor_used=false`、`hid_injected=false`、HTTP 结果、计数或进程未误变。这次运行光标坐标碰巧没变，不代表像素相等仍是门槛。
+- 当前领取仍是会话 `01M4WK83ATFMZE2GT1NR2J3H9Z`。不要结束旧会话，不要领取 `BR-001`。完成前必须由用户要求提交，再在干净 SHA 上复跑，`dirty=false` 且 `ok=true`，然后绑定证据。
+
+
+## 2026-10-14 16:25：读回留在 System Events 内，屏幕仍锁定
+
+`vcuChanged` 处理器在 tell 外读 AX 元素，引用可能无效，已删掉。成功和错误分支都在 `tell application "System Events"` 内重试读 `AXHelp`/`AXValue`，最多 3 次、间隔 0.2 秒。状态变化才返回 `PRESSED`，否则进入 4 秒杀手。`app::binding::tests` 6 passed，`vcu-cli` 已重新构建。`CGSSessionScreenIsLocked` 仍是 true，POC 未复跑。16:14 报告不覆盖这段代码。不要领取 `BR-001`。解锁后先复跑 `scripts/poc_mac_004_actions.py`。
+
+## 2026-10-14 16:23：读回重试已写入，屏幕仍锁定
+
+
+慢返回的 AX 读回改为最多 3 次、间隔 0.2 秒。成功分支和错误分支都先看状态是否变化，没变化才进入 4 秒杀手。`app::binding::tests` 6 passed，`vcu-cli` 已重新构建。`CGSSessionScreenIsLocked` 仍是 true，POC 未复跑。16:14 报告不覆盖这段代码。不要领取 `BR-001`。
+
+## 2026-10-14 16:20：MAC-004 慢按压读回已写入，真机未复跑
+
+
+锁屏，`CGSSessionScreenIsLocked=true`。没有启动 GUI 夹具，也没有重跑 `scripts/poc_mac_004_actions.py`，避免用锁屏失败覆盖 16:14 报告。16:14 的 `ok=true` 不覆盖这次代码。
+
+- 慢按压不再只靠 `elapsed >= 1.45` 杀进程。System Events 返回且耗时达到 1.45 秒时，同一脚本读 AXHelp/AXValue。读回相对动作前变化才返回 `PRESSED`；否则 `delay 5`，仍由 4 秒杀手消费代次。错误分支仍在 1.45 秒后进入杀手，避免 `return false` 的挂起被写成普通失败。
+- 夹具新增 `arm-edge`：睡 1.5 秒后计数并返回。POC 增加 `action_edge_press_kept`。这是为了覆盖 1.45 到约 1.6 秒的完成按压，但锁屏期间没有真机结果。
+- `app::binding::tests` 6 passed。`vcu-cli` 已离线构建。HEAD 仍是 `501d476`，工作树脏。源状态保持 `planned`，证据数 0。
+- 当前领取仍是会话 `01M4WK83ATFMZE2GT1NR2J3H9Z`。不要结束旧会话，不要领取 `BR-001`。解锁后先复跑 POC。完成前仍须用户要求提交、干净 SHA、`dirty=false` 且 `ok=true` 的复跑，再绑定证据。
+
+## 2026-10-14 16:14：MAC-004 放弃阈值收紧，脏树 POC ok=true（已被 16:20 代码取代，真机报告不覆盖新代码）
+
+
+`.local/desktop-cu/mac-MAC-004.json` 最新报告 `ok=true`，`completion_allowed=false`。HEAD 仍是 `501d476`，工作树脏。源状态保持 `planned`，证据数 0。16:04 的报告已被这次取代，但不能把脏树通过写成完成。
+
+- 动作脚本放弃阈值从 `>= 1` 收到 `>= 1.45`。System Events 约 1.6 秒放弃仍在执行的 `AXPress`。1.45 秒以下完成的按压仍返回 `PRESSED`；约 1.6 秒放弃的调用进入 `delay 5`，由 4 秒杀手消费代次。1.45 到约 1.6 秒之间真正完成的慢按压仍可能被误杀，这次没有覆盖该区间。
+- `action_slow_press_kept` 通过：夹具在 `accessibilityPerformPress` 睡 1.2 秒后计数并返回。HTTP 200，`elapsed_s=1.872`，`verified=true`，读回 `presses=2`，`go-a` 从 1 到 2，`go-b` 仍为 0。没有进入 4 秒杀手。
+- `action_timeout_isolated` 通过：挂起改为睡 1.7 秒后返回 false。HTTP 400，`elapsed_s=4.187`，错误是 `ax command timed out`。计数未变：`go-a=2`，`go-b=0`，`go-fail=0`。
+- `action_timeout_not_replayed` 通过：0.003 秒返回 `scene generation was consumed`。
+- 同一次报告里，TextEdit 独立读回 `VCU-MAC-004-f478007e`，`go-a` live 按压、错 ref、只读、`go-fail`、终端换行 409 都是 pass。`os_cursor_used=false`。`app::binding::tests` 6 passed。
+- 当前领取仍是会话 `01M4WK83ATFMZE2GT1NR2J3H9Z`。不要结束旧会话，不要领取 `BR-001`。完成前必须在用户要求提交后的干净 SHA 上复跑，`dirty=false` 且 `ok=true`，再绑定证据。
+
+## 2026-10-14 16:04：MAC-004 脏树 POC ok=true（已被 16:14 报告取代）
+
+`.local/desktop-cu/mac-MAC-004.json` 最新报告 `ok=true`，`completion_allowed=false`。HEAD 仍是 `501d476`，工作树脏。源状态保持 `planned`，证据数 0。15:30 的 `ok=false` 已被这次报告取代，但不能把脏树通过写成完成。
+
+- `action_timeout_isolated` 通过：HTTP 400，`elapsed_s=4.21`，错误是 `ax command timed out`。这是 `run_osascript_timeout` 的 4 秒杀手，不是窗口消失。计数未变：`go-a=1`，`go-b=0`，`go-fail=0`。
+- System Events 约 1.6 秒就会放弃仍在执行的 `AXPress` 并返回成功。夹具挂起留在 `accessibilityPerformPress`，只睡 1.55 秒后返回，避免主线程在 System Events 返回后继续堵死读回。动作脚本在按压耗时达到 1 秒时不报 `PRESSED`，把同一个 osascript 留到 4 秒杀手。
+- `action_timeout_not_replayed` 通过：0.003 秒返回 `scene generation was consumed`。
+- 同一次报告里，TextEdit 独立读回 `VCU-MAC-004-85abe436`、`go-a` live 按压读回 `presses=1`、错 ref、只读、`go-fail`、终端换行 409 都是 pass。`os_cursor_used=false`。
+- 当前领取仍是会话 `01M4WK83ATFMZE2GT1NR2J3H9Z`。不要结束旧会话，不要领取 `BR-001`。完成前必须在用户要求提交后的干净 SHA 上复跑，`dirty=false` 且 `ok=true`，再绑定证据。
+
+## 2026-10-14 15:30：MAC-004 脏树报告 ok=false（已被 16:04 报告取代）
+
+`.local/desktop-cu/mac-MAC-004.json` 的最新报告是 `ok=false`，`completion_allowed=false`。HEAD 仍是 `501d476`，工作树脏。源状态保持 `planned`，证据数 0。下面较早的 `ok=true` 记录已被这次报告取代，不能再当作当前结果。
+
+- `action_timeout_isolated` 失败：HTTP 400，`elapsed_s=3.463`，错误是 `bound window or element is gone`，不是超时。目标是新快照的 `go-a`，`bound_ref=b1.01M4WN2SNH97217GZ9ATW918H4.n2`。计数未变：`go-a=1`，`go-b=0`，`go-fail=0`。系统光标坐标未变。
+- `action_timeout_not_replayed` 通过：0.003 秒返回 `scene generation was consumed`。这只说明重放被拒绝，不证明超时杀手已执行。
+- 同一次报告里，TextEdit 独立读回、`go-a` live 按压、错 ref、只读、`go-fail`、终端换行 409 都是 pass。这些通过项不能把总报告写成 `ok=true`。
+- 当前领取仍是会话 `01M4WK83ATFMZE2GT1NR2J3H9Z`。不要结束旧会话，不要领取 `BR-001`。完成前必须先让有上限的真机超时进入杀手路径，再在干净 SHA 上复跑并绑定证据。
+
+## 2026-10-14：MAC-004 较早脏树 POC 通过（已被 15:30 报告取代）
+
+`scripts/poc_mac_004_actions.py` 在未锁屏的本机返回 `ok=true`。证据文件是 `.local/desktop-cu/mac-MAC-004.json`。HEAD 仍是 `501d476`，工作树是脏的，报告 `completion_allowed=false`。这不是完成证据，源状态保持 `planned`，没有登记 completion evidence，没有改台账为 completed。
+
+- TextEdit 自建文件 `VCU-MAC-004.txt` 写入 `VCU-MAC-004-9a440045`，AX 读回与 AppleScript 独立读回一致，`verified=true`，`os_cursor_used=false`。中文系统窗口所有者是「文本编辑」，POC 按 PID 找窗口。
+- 夹具 `go-a` live 按压后独立读回 `presses=1`，`go-b` 仍为 0。系统光标前后坐标未变。dry-run 不改变计数。已消费代次重放返回 400。
+- 错 ref `e1`/`n1` 被拒绝。新观察后的 `go-fail` 按压返回 ActionFailed，计数不变。只读 `locked` 因不可编辑且无 AXSetValue 被拒绝，没有改其他目标。
+- 终端换行门禁已走隔离 daemon：`proc:Terminal:1` 提交 `echo\nhi` 返回 HTTP 409 `FocusPolicyViolation`，没有启动 Terminal，系统光标坐标未变。TextEdit 换行不受该门禁拦截。超时仍只有单测，没有真机挂起。
+- 当前领取会话是 `01M4WK83ATFMZE2GT1NR2J3H9Z`，继承自 `01M4WHM4WCRMSBK3Z6W3QJCC71`。不要结束旧会话，不要领取 `BR-001`。完成前必须在干净 SHA 上复跑 POC 并绑定证据。
+
+## 2026-10-14：最高准则写入台账
+
+用户要求把停手前自检写入 AWR 台账的最高准则。已写入 `AGENTS.md`「最高准则」、`.awr/intake/work-ledger.yaml` 头部、`GOALS.md` 的 `goal#vcu`，并同步 `docs/PLAN.md`。这是治理规则，不是功能完成。
+
+停手、挂起、阻塞或标记完成前必须 `rtk proxy awr --project . status` 和 `ready`。仍有可执行或待派发工作时如实报告。假阻塞不得写成 blocked。禁止说谎，禁止未充分测试就标记完成。任务和阶段完成后必须落地标注和文档。不得擅自领取下一项。
+
+## 2026-10-09 会话关闭：MAC-003 已完成，未领取下一项
+
+用户要求记录进度并关闭当前会话。已核对 Git 与 AWR，没有领取新工作，没有提交，没有推送。HEAD 仍是 `501d476`（`docs: mark MAC-003 complete after the clean binding POC`），比 `origin/main` 超前 9。功能证据是代码提交 `2033326`，不要把 `501d476` 或本段未提交文档当成新功能。
+
+- 关闭记录本身未提交。脏文件只有 `docs/HANDOFF.md` 和 `docs/PLAN.md`。不要丢弃，也不要把它记成产品完成证据。
+- `MAC-001`、`MAC-002`、`MAC-003` 源状态都是 completed。`MAC-003` 证据 `mac-003-binding` 绑定干净 SHA `2033326d03798122cdbf5d1e5478f02bd3fd11ff`，POC `ok=true`，`dirty=false`。不要重做，也不要改回未完成。
+- AWR 关闭核对：Continue 0，Claimable 2，Waiting 26，Blocked 1。`MAC-004` 和 `BR-001` 都是 ready，都没有 claim。下次没有用户明确要求就不要领取，也不要开始实现。
+- `MAC-003` 仍有 active claim，会话 `01M4DY9QJG6MXVSR03ZSV76SN1`。`01M4DJ9FZJA5A39ZS0CBB5V8GA`、`01M3KKZTFFQTZ3FF0DWWZHP5QV` 和更早的 active 会话都还在。不要结束它们。
+- 没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信，没有改 `~/.codex/computer-use/`，没有覆盖 `~/.local/bin`。
+
+下次先读 `docs/PLAN.md`、`docs/PLAN-MACOS.md` 和本文。Shell 命令前缀用 `rtk`。锁屏时不要把空 AX 树当成产品故障。
+
+```sh
+rtk git status --short
+rtk proxy awr --project . status
+```
+
 ## 2026-10-09：MAC-003 完成
 
 `2033326d03798122cdbf5d1e5478f02bd3fd11ff` 干净工作树复跑 `scripts/poc_mac_003_binding.py` 返回 `ok=true`，`dirty=false`。证据 `mac-003-binding` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-004` 或 `BR-001`，除非用户明确要求。不要结束会话 `01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。

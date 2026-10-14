@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "work_item": "MAC-004",
+  "source_sha": "64daa23271f8d9375f4195b09a3c4acefd7cfa7f",
+  "command": "python3 scripts/poc_mac_004_actions.py",
+  "scope": [
+    "MAC-004"
+  ],
+  "verified_at": 1791972545137,
+  "checks": [
+    {
+      "name": "textedit marker and native button readback",
+      "passed": true,
+      "details": "Clean 64daa23 wrote VCU-MAC-004-eb21c3ba and AppleScript read the same text. Native go-a went from 0 to 1 with verified=true and readback presses=1. Slow press at 1.862s kept go-a at 2. Edge press at 2.178s kept go-a at 3.",
+      "criteria": [
+        "指定 TextEdit 自建文档写入唯一标记并独立读回，原生测试按钮改变可验证状态"
+      ]
+    },
+    {
+      "name": "wrong ref readonly nonzero and timeout isolation",
+      "passed": true,
+      "details": "Legacy e1 and observation n1 returned HTTP 400. go-fail returned HTTP 400 and stayed at 0 while go-a stayed at 1. Readonly locked set-value returned HTTP 400. Hang timeout at 4.191s returned ax command timed out and left go-a at 3 and go-b at 0.",
+      "criteria": [
+        "错误 ref/只读控件/非零 AX/超时不改其他目标，不把调用成功当业务成功"
+      ]
+    },
+    {
+      "name": "cursor newline gate and no replay",
+      "passed": true,
+      "details": "os_cursor_used=false and hid_injected=false. Mouse stayed at the same point. Terminal newline returned HTTP 409 and started no Terminal process. TextEdit newline was not refused by the terminal gate. Consumed button and TextEdit mutations were not replayed.",
+      "criteria": [
+        "os_cursor_used=false；Return/终端换行门禁与 mutation 不重放测试通过"
+      ]
+    }
+  ]
+}
