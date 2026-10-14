@@ -8,7 +8,7 @@
 
 **最高准则（2026-10-14）：** 停手、挂起、阻塞或标记完成前，必须用 AWR 实查可执行/待派发工作并验明阻塞真假。禁止说谎，禁止未充分测试就标记完成。任务和阶段完成后必须落地标注和文档。准则见 [AGENTS.md](../AGENTS.md) 与台账头部；它不授权擅自领取下一项。
 
-**下一轮主线：macOS 受限桌面会话。** 历史 CU-D-010…700 已关闭；新排期为 MAC-001…008，MAC-NEXT 为总验收。`MAC-001` 在 `00d2be7` 干净工作树上预检 `ok=true`。`MAC-002` 在 `a350741` 干净工作树上 POC `ok=true`，源状态已完成。`MAC-003` 在 `2033326` 干净工作树上 POC `ok=true`，源状态已完成。`MAC-004` 在 `64daa23` 干净工作树上 POC `ok=true`，`dirty=false`，源状态已完成。证据是 `mac-004-actions`。`BR-001` 和 `MAC-005` 都不要领取，除非用户明确要求。交接见 [HANDOFF.md](HANDOFF.md)。
+**下一轮主线：macOS 受限桌面会话。** 历史 CU-D-010…700 已关闭；新排期为 MAC-001…008，MAC-NEXT 为总验收。`MAC-001` 在 `00d2be7` 干净工作树上预检 `ok=true`。`MAC-002` 在 `a350741` 干净工作树上 POC `ok=true`，源状态已完成。`MAC-003` 在 `2033326` 干净工作树上 POC `ok=true`，源状态已完成。`MAC-004` 在 `64daa23` 干净工作树上 POC `ok=true`，`dirty=false`，源状态已完成。证据是 `mac-004-actions`。`MAC-005` 在 `bfff2f4` 干净工作树上 POC `ok=true`，`dirty=false`，源状态已完成。证据是 `mac-005-navigation`。`BR-001` 和 `MAC-006` 都不要领取，除非用户明确要求。交接见 [HANDOFF.md](HANDOFF.md)。
 
 Windows 已复测范围以 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md) 的 CU-WIN-SESSION-001…091、[修复计划](PLAN-WINDOWS-FIX.md) 的 WIN-FIX-001…009、[视觉记录](PLAN-WINDOWS-VISUAL.md) 至 WIN-VIS-013 为准。它们是历史证据，不是完整 Windows 产品 CU，也未在本轮复测。CI run `36129175359` 是历史恢复证据，不代表本轮新跑的检查。
 
@@ -37,7 +37,7 @@ Windows 已复测范围以 [PLAN-EPIC-WIN-SESSION.md](PLAN-EPIC-WIN-SESSION.md) 
 | 2 | MAC-002 | 有预算、可展开、可脱敏的深 AX Scene | `a350741` POC ok=true，源状态 completed |
 | 3 | MAC-003 | 指定窗口、Scene/ref 与截图绑定，拒绝过期目标 | `2033326` POC ok=true，源状态 completed |
 | 4 | MAC-004 | 精确点击和输入，独立读回验证 | completed；64daa23 干净 POC ok=true |
-| 5 | MAC-005 | 目标滚动、等待和提取 | planned，依赖 004 |
+| 5 | MAC-005 | 目标滚动、等待和提取 | completed；bfff2f4 干净 POC ok=true |
 | 6 | MAC-006 | Stage/Guide 生命周期、Abort 与坐标验证 | planned，依赖 005 |
 | 7 | MAC-007 | TextEdit/Finder/受控原生控件的真实任务闭环 | planned，依赖 MAC-006、BR-004 |
 | 8 | MAC-008 | CLI/MCP 契约、回归、本地打包与能力说明 | planned，依赖 007 |

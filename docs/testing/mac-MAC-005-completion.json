@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "work_item": "MAC-005",
+  "source_sha": "bfff2f420d2d2882fc7d5962628873efc8a6d977",
+  "command": "python3 scripts/poc_mac_005_navigation.py",
+  "scope": [
+    "MAC-005"
+  ],
+  "verified_at": 1791974342245,
+  "checks": [
+    {
+      "name": "named scroll area readback and isolation",
+      "passed": true,
+      "details": "Clean bfff2f4 dry-run left both offsets at 0. scroll-a went from 0 to 90 while scroll-b stayed 0. After re-observation, scroll-b went from 0 to 90 while scroll-a stayed 90. Both live calls returned verified=true, scroll_route=scroll-area-bar, and readback offset=90 bar=0.2. Button scroll returned HTTP 400 and both offsets stayed 90. The consumed generation was not replayed.",
+      "criteria": [
+        "双滚动区仅指定区变化，滚动状态独立读回；不支持的动作明确失败"
+      ]
+    },
+    {
+      "name": "same-window wait, timeout, and stale ref",
+      "passed": true,
+      "details": "Name and role wait hit scroll-a / AXScrollArea on window 19385 and returned a new bound ref. Missing window_id was refused. A missing name timed out after 700ms. Stale ref b1.01ARZ3NDEKTSV4RRFFQ69G5FAV.n2 timed out and was not reused. TextEdit value wait hit AXTextArea; AppleScript independently read VCU-MAC-005-0c04fff6.",
+      "criteria": [
+        "wait 按值/名称/角色命中正确控件，缺失目标诚实超时且不误用旧 ref"
+      ]
+    },
+    {
+      "name": "scene extract and redaction",
+      "passed": true,
+      "details": "Extract returned HTTP 200, count 1, source=desktop.scene, window 19396, and the same VCU-MAC-005-0c04fff6 marker. This run did not reopen the historical MAC-004 document. Fixture extract found one password node with an empty redacted value. vcu-secret-should-not-leak did not appear. os_cursor_used=false and hid_injected=false.",
+      "criteria": [
+        "extract 读回 MAC-004 标记，来源及脱敏规则与当前窗口 Scene 一致"
+      ]
+    }
+  ]
+}

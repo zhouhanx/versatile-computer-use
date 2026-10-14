@@ -1,6 +1,39 @@
 # macOS CU 结果
 
-更新：2026-10-09。这里只记录已经实际跑过的命令。`.local/desktop-cu/mac-MAC-001.json` 是 gitignore 的绑定报告；工作树脏时 `source_identity=warn`，整体 `ok` 不得当成完成。
+更新：2026-10-14。这里只记录已经实际跑过的命令。`.local/desktop-cu/mac-MAC-001.json` 是 gitignore 的绑定报告；工作树脏时 `source_identity=warn`，整体 `ok` 不得当成完成。
+
+## MAC-005
+
+更新：2026-10-14。最终绑定是干净 SHA `bfff2f420d2d2882fc7d5962628873efc8a6d977` 的 `.local/desktop-cu/mac-MAC-005.json`，`ok=true`，`dirty=false`，`completion_allowed=true`。代码提交就是这个 SHA。夹具是 `VCUAxBinding` 的 `scroll-a` / `scroll-b`，TextEdit 文档是 `VCU-MAC-005.txt`。
+
+| 验收 | 结果 | 证据 |
+| --- | --- | --- |
+| 指定滚动区变化，另一区不变 | pass | `scroll-a` 0 到 90，`scroll-b` 保持 0；随后 `scroll-b` 0 到 90，`scroll-a` 保持 90 |
+| 滚动状态独立读回 | pass | 两条都是 `verified=true`，`scroll_route=scroll-area-bar`，读回 `offset=90 bar=0.2` |
+| 不支持的滚动明确失败 | pass | 按钮滚动 HTTP 400，两个 offset 仍是 90，按钮计数仍是 0 |
+| 已消费滚动不重放 | pass | HTTP 400，`scene generation was consumed` |
+| wait 名称/角色命中 | pass | `scroll-a` / `AXScrollArea`，新 bound ref，窗口 `19385` |
+| 缺窗口拒绝猜测 | pass | HTTP 400，`refusing to guess or reuse an old ref` |
+| 缺失目标诚实超时 | pass | HTTP 400，700ms，`missing-target-xyz` |
+| 旧 ref 不重放 | pass | HTTP 400，stale ref 未成为 `found_ref` |
+| 值等待独立读回 | pass | `AXTextArea`，AppleScript 读回 `VCU-MAC-005-0c04fff6` |
+| 提取同窗标记 | pass | HTTP 200，count 1，`source=desktop.scene`，窗口 `19396` |
+| 脱敏 | pass | password 值空且 `redacted=true`；`vcu-secret-should-not-leak` 未出现 |
+| 不移动系统光标 | pass | `os_cursor_used=false`，`hid_injected=false` |
+
+这次提取读回的是本次写入的 `VCU-MAC-005-0c04fff6`，不是历史 `VCU-MAC-004-eb21c3ba`。没有重开 MAC-004 文档。
+
+### 已跑命令
+
+- `python3 scripts/poc_mac_005_navigation.py`：在干净 `bfff2f4` 复跑，`ok=true`，`dirty=false`。屏幕未锁。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
+- `cargo test -p vcu-server --offline --lib -- app::binding::tests`：7 passed。
+
+### 不宣称
+
+- 不宣称滚动区的 `AXScrollDownByPage` 已作为真机成功路径验证。这次成功路径是滚动区自身滚动条。非滚动区翻页动作只在 `scroll_route_stays_on_the_named_control` 单测覆盖。
+- 不宣称重读了 MAC-004 历史标记。
+- 不宣称锁屏时这套动作仍可用。锁屏会让 POC 在启动前失败。
+- 不宣称 `MAC-006` 或 `BR-001` 已领取。没有结束既有 AWR 会话。
 
 ## MAC-001
 

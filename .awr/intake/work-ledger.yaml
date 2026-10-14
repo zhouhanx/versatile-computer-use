@@ -1298,19 +1298,22 @@ work_items:
 
   - id: MAC-005
     title: macOS 目标滚动、等待与提取
-    status: planned
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-macos-desktop
     required: true
     priority: P1
-    summary: 修正 scroll 忽略 ref，wait/extract 使用同窗新观察与明确定位条件。
+    summary: bfff2f4 干净 POC ok=true。指定滚动区独立读回 offset=90；按钮滚动拒绝且两个区保持 90；wait 命中同窗新观察；提取读回本次 VCU-MAC-005-0c04fff6，来源 desktop.scene，密码值脱敏。没有重开 MAC-004 历史文件。
     acceptance:
       - "双滚动区仅指定区变化，滚动状态独立读回；不支持的动作明确失败"
       - "wait 按值/名称/角色命中正确控件，缺失目标诚实超时且不误用旧 ref"
       - "extract 读回 MAC-004 标记，来源及脱敏规则与当前窗口 Scene 一致"
-    next_action: MAC-004 完成后用双滚动区夹具验证目标路由与重新观察
-    evidence: []
+    next_action: 已完成。下一开发项是 MAC-006，只在用户要求后领取。BR-001 可能已 ready，但没有用户要求就不要领取。不要结束会话 01M4WYGS48DZE0X55A2HDJMP00、01M4WK83ATFMZE2GT1NR2J3H9Z、01M4DY9QJG6MXVSR03ZSV76SN1、01M4DJ9FZJA5A39ZS0CBB5V8GA 或 01M3KKZTFFQTZ3FF0DWWZHP5QV。
+    evidence:
+      - "docs/testing/MACOS_CU_RESULTS.md"
+      - "docs/testing/mac-MAC-005-completion.json"
+      - ".local/desktop-cu/mac-MAC-005.json"
     depends_on: ["MAC-004"]
 
   - id: MAC-006

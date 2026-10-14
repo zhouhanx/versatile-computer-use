@@ -1,5 +1,17 @@
 # 会话交接
 
+## 2026-10-14：MAC-005 完成
+
+`bfff2f420d2d2882fc7d5962628873efc8a6d977` 干净工作树复跑 `scripts/poc_mac_005_navigation.py` 返回 `ok=true`，`dirty=false`，`completion_allowed=true`。证据 `mac-005-navigation` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-006` 或 `BR-001`，除非用户明确要求。不要结束会话 `01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+- `scroll-a` 从 0 到 90，`scroll-b` 保持 0。重新观察后 `scroll-b` 从 0 到 90，`scroll-a` 保持 90。两条 `verified=true`，`scroll_route=scroll-area-bar`，读回 `offset=90 bar=0.2`。
+- 按钮滚动 HTTP 400，两个 offset 仍是 90，三个按钮计数仍是 0。已消费代次拒绝重放。
+- wait 名称/角色命中 `scroll-a` / `AXScrollArea`，返回的是新 bound ref。无 `window_id` 时拒绝猜测。缺失目标 700ms 超时。旧 ref 不能重放。
+- TextEdit 值等待命中 `AXTextArea`，AppleScript 独立读回 `VCU-MAC-005-0c04fff6`。提取 `source=desktop.scene`，count 1。没有重开 MAC-004 历史文件，也没有读回 `VCU-MAC-004-eb21c3ba`。
+- 夹具提取看到 1 个 password 节点，值为空且 `redacted=true`。`vcu-secret-should-not-leak` 未出现。`os_cursor_used=false`，`hid_injected=false`。
+- 同一次干净 SHA 上，`app::binding::tests` 7 passed，包含 `scroll_route_stays_on_the_named_control`。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信。
+- 不宣称滚动区的 `AXScrollDownByPage` 已在真机上作为成功路径验证。夹具滚动区走的是自身滚动条。非滚动区翻页动作只在单测里覆盖。
+
 ## 2026-10-14：MAC-004 完成
 
 `64daa23271f8d9375f4195b09a3c4acefd7cfa7f` 干净工作树复跑 `scripts/poc_mac_004_actions.py` 返回 `ok=true`，`dirty=false`，`completion_allowed=true`。证据 `mac-004-actions` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-005` 或 `BR-001`，除非用户明确要求。不要结束会话 `01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。

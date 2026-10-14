@@ -74,12 +74,13 @@
 - 2026-10-14 16:14：脏工作树当时报告 `ok=true`，文件是 `.local/desktop-cu/mac-MAC-004.json`，`completion_allowed=false`。放弃阈值收到 1.45 秒。`action_slow_press_kept` 在 1.872 秒返回 HTTP 200，读回 `presses=2`。`action_timeout_isolated` 在 4.187 秒返回 `ax command timed out`，计数未变，重放被消费。源状态仍是 planned。1.45 到约 1.6 秒的完成按压仍可能被误杀，未测。干净 SHA 复跑并绑定证据前不是完成。
 - 2026-10-14 16:04：已被 16:14 报告取代。当时阈值是 1 秒，`action_timeout_isolated` 在 4.21 秒进入杀手。
 
-### MAC-005：目标滚动、等待和提取（P1，planned）
+### MAC-005：目标滚动、等待和提取（P1，completed）
 
 - 前置：MAC-004。
-- 落点：`app/macos.rs::scroll`、`browser/desktop.rs` 的 wait/extract 及 `api.rs`；拟新增 `scripts/poc_mac_005_navigation.py`。
+- 落点：`app/macos.rs::scroll`、`browser/desktop.rs` 的 wait/extract 及 `api.rs`；`scripts/poc_mac_005_navigation.py`。
 - 工作：滚动必须尊重指定 ref 与窗口，按可用 AX 动作或滚动条能力执行；等待每次重新观察并使用明确定位条件；提取来自同一窗口/Scene，继承脱敏规则。
 - 验收：双滚动区只改变指定区；滚动后可见内容或滚动条读回发生预期变化；等待值/名称/角色命中正确控件，缺失目标诚实超时；提取能读回 MAC-004 标记；不支持的滚动明确失败。
+- 2026-10-14：干净 SHA `bfff2f420d2d2882fc7d5962628873efc8a6d977` 复跑 `scripts/poc_mac_005_navigation.py`，`.local/desktop-cu/mac-MAC-005.json` 为 `ok=true`，`dirty=false`，`completion_allowed=true`。`scroll-a` 从 0 到 90 时 `scroll-b` 仍是 0；重新观察后 `scroll-b` 从 0 到 90，`scroll-a` 保持 90。两条都是 `verified=true`，`scroll_route=scroll-area-bar`，读回 `offset=90 bar=0.2`。按钮滚动 HTTP 400，两个 offset 仍是 90。wait 名称/角色命中 `scroll-a` / `AXScrollArea`；TextEdit 值等待独立读回 `VCU-MAC-005-0c04fff6`。提取 `source=desktop.scene`，count 1。没有重开 MAC-004 历史文件。`vcu-secret-should-not-leak` 未出现。证据 `mac-005-navigation` 已登记。
 
 ### MAC-006：Stage/Guide 生命周期与坐标（P1，planned）
 
@@ -112,7 +113,7 @@
 
 ## 5. 验证、证据和执行节奏
 
-`scripts/poc_mac_001_preflight.py` 已运行；后续切片的拟新增脚本仍不存在。实现时先复用仓库已有 POC，避免重复测试设施。每条切片的报告只在 POC 实际运行后写入 `.local/desktop-cu/mac-<ID>.json`，摘要写入 `docs/testing/MACOS_CU_RESULTS.md`。未运行的脚本不是证据。
+`scripts/poc_mac_001_preflight.py` 已运行。MAC-002…005 的 POC 脚本已存在，并各有干净 SHA 报告；MAC-006 及之后的拟新增脚本仍不存在。实现时先复用仓库已有 POC，避免重复测试设施。每条切片的报告只在 POC 实际运行后写入 `.local/desktop-cu/mac-<ID>.json`，摘要写入 `docs/testing/MACOS_CU_RESULTS.md`。未运行的脚本不是证据。
 
 每份报告至少记录：work ID、真实 source SHA（未提交修改另记 diff 摘要/哈希）、OS/架构/显示器、实际二进制与 daemon、命令、时间、逐条验收结果、source/input_path、截图或读回证据、清理结果。本轮规划文档不能充当未来功能完成报告。
 
