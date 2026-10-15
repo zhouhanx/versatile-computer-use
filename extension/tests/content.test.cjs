@@ -856,3 +856,30 @@ test("type sets a native select by label or value and reports dom_select", () =>
   assert.match(missing.error, /select option not found/);
   assert.equal(select.value, "low");
 });
+
+test("scroll reports failure instead of a false success when the page does not move", () => {
+  installPage({ scrollingElement: null, documentElement: null, querySelectorAll: () => [] });
+  global.window.scrollX = 0;
+  global.window.scrollY = 0;
+  global.window.scrollBy = () => {};
+  const result = content.scrollDom(480, false);
+  assert.equal(result.ok, false);
+  assert.equal(result.scrolled, false);
+  assert.match(result.error, /did not move/);
+});
+
+test("scroll does not treat a content-world scrollTop write as page movement", () => {
+  const scroller = {
+    scrollLeft: 0,
+    scrollTop: 0,
+    scrollTo(x, y) { this.scrollLeft = x; this.scrollTop = y; },
+  };
+  installPage({ scrollingElement: scroller, documentElement: scroller, querySelectorAll: () => [] });
+  global.window.scrollX = 0;
+  global.window.scrollY = 0;
+  global.window.scrollBy = () => {};
+  const result = content.scrollDom(480, false);
+  assert.equal(result.ok, false);
+  assert.equal(result.scrolled, false);
+  assert.match(result.error, /did not move/);
+});

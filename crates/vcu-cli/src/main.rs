@@ -377,7 +377,7 @@ enum BrowserCmd {
         #[arg(long)]
         from: Option<String>,
     },
-    /// Observe USER Chrome/Edge without Stage HUD. Without --tab, frontmost must be Chrome/Edge. Stamps tab_id; later click/screenshot/open bind it for 60s.
+    /// Observe USER Chrome/Edge without Stage HUD. Does not activate or replace the page in use. Without --tab, frontmost must be Chrome/Edge.
     Observe {
         #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
         pixels: bool,
@@ -385,7 +385,7 @@ enum BrowserCmd {
         selector: Option<String>,
         #[arg(long, default_value_t = 2500)]
         budget: u64,
-        /// Capture this USER tab. Activates it in-window without stealing OS frontmost.
+        /// Observe this USER tab in place. Does not activate it or replace the page in use.
         #[arg(long)]
         tab: Option<String>,
         /// chrome or edge. Disambiguates colliding tab ids; without --tab observes that browser's focused tab.
@@ -399,7 +399,7 @@ enum BrowserCmd {
         #[arg(long)]
         browser: Option<String>,
     },
-    /// Click viewport pixels (--capture) or a unique DOM selector. Without --tab, selector clicks bind last observe for 60s.
+    /// Click viewport pixels (--capture) or a unique DOM selector. Omit --tab for a real selector click so it stays in the collapsed VCU group. Do not pass the page being read.
     Click {
         #[arg(long)]
         pixel_x: Option<f64>,
@@ -446,7 +446,7 @@ enum BrowserCmd {
         #[arg(long, default_value_t = false)]
         dry_run: bool,
     },
-    /// Scroll a USER browser tab through the extension, or AX when disconnected.
+    /// Scroll in the collapsed VCU group. Omit --tab for a real scroll. Do not pass the page being read. Null is not a target.
     Scroll {
         #[arg(long)]
         tab: Option<String>,
@@ -468,7 +468,7 @@ enum BrowserCmd {
         #[arg(long = "ref")]
         target_ref: Option<String>,
     },
-    /// Open http(s) URL as a background tab in the VCU tab group. Does not replace the user page or focus the window.
+    /// Open http(s) URL in the parked quiet window's collapsed VCU group when one exists. Does not replace the page being read, activate the new tab, or focus a window.
     Open {
         #[arg(long)]
         url: String,
@@ -748,7 +748,7 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                                 "vcu daemon start",
                                 "vcu browser install-lens   # load unpacked in USER Chrome/Edge",
                                 "vcu browser ping --json",
-                                "vcu browser observe --json  # view PNG; 60s click/screenshot/open bind last observe"
+                                "vcu browser observe --json  # does not replace the page in use; real clicks omit --tab and stay in the VCU group"
                             ]
                         }),
                         json,
@@ -1285,21 +1285,20 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 dry_run,
                 guide,
             } => {
-                let v = api_post(
-                    &paths,
-                    "/v1/browser/click",
-                    json!({
-                        "pixel_x": pixel_x,
-                        "pixel_y": pixel_y,
-                        "selector": selector,
-                        "tab_id": tab,
-                        "browser": browser,
-                        "space": space,
-                        "capture_id": capture,
-                        "dry_run": dry_run,
-                        "guide": guide,
-                    }),
-                )
+                let mut body = json!({
+                    "pixel_x": pixel_x,
+                    "pixel_y": pixel_y,
+                    "selector": selector,
+                    "browser": browser,
+                    "space": space,
+                    "capture_id": capture,
+                    "dry_run": dry_run,
+                    "guide": guide,
+                });
+                if let Some(id) = tab.filter(|s| !s.trim().is_empty()) {
+                    body["tab_id"] = json!(id);
+                }
+                let v = api_post(&paths, "/v1/browser/click", body)
                 .await?;
                 println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
                 Ok(ok_exit(&v))
@@ -1341,7 +1340,10 @@ async fn run(cli: Cli, paths: VcuPaths) -> Result<i32, VcuError> {
                 Ok(ok_exit(&v))
             }
             BrowserCmd::Scroll { dy, dry_run, tab, browser } => {
-                let mut body = json!({ "dy": dy, "dry_run": dry_run, "tab_id": tab });
+                let mut body = json!({ "dy": dy, "dry_run": dry_run });
+                if let Some(id) = tab.filter(|s| !s.trim().is_empty()) {
+                    body["tab_id"] = json!(id);
+                }
                 if let Some(b) = browser {
                     body["browser"] = json!(b);
                 }

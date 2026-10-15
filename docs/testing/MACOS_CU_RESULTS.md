@@ -2,6 +2,43 @@
 
 更新：2026-10-14。这里只记录已经实际跑过的命令。`.local/desktop-cu/mac-MAC-001.json` 是 gitignore 的绑定报告；工作树脏时 `source_identity=warn`，整体 `ok` 不得当成完成。
 
+## MAC-006
+
+更新：2026-10-14。最终绑定是干净 SHA `e6fa5e9aee54d96360e085ec4b8cd65314333187` 的 `.local/desktop-cu/mac-MAC-006.json`，`ok=true`，`dirty=false`，`completion_allowed=true`。代码提交就是这个 SHA。文档在这次复跑之后写入，不改变该报告的 source SHA。两块显示器都是 2×。夹具窗口是 `VCU-MAC-003-A`。
+
+| 验收 | 结果 | 证据 |
+| --- | --- | --- |
+| 查询屏幕和坐标映射不启动 HUD | pass | `screens_and_map_guide_do_not_start_hud`，screens 2，new_pids 空，new_files 0 |
+| HUD 可见时 Guide 命中窗口点 | pass | hover HTTP 200，AX `[124, 897]`，Guide overlay 同点，窗口点 `[92, 863]`，84×84 |
+| 不移动系统光标 | pass | hover 前后光标都是 `[3173.234375, 668.8125]`，`os_cursor_used=false` |
+| HUD 隐藏后拒绝动作 | pass | hover 与 `/v1/app/invoke` 都是 HTTP 400 `StageRequired` |
+| helper 退出后拒绝并清理 | pass | helper 已死，窗口空，动作 HTTP 404 `SessionNotFound` |
+| daemon 重启不复用旧 Scene | pass | epoch `01M4X2NWFRD8546YA9H1VG3FS4` → `01M4X2P4V8BZEEDXXXB7TT3T84`；scene 不复用；orphan sweep；旧 ref HTTP 400 `InvalidInput` |
+| CLI Abort 清理 | pass | helper 已死，窗口空 |
+| MCP Abort 清理 | pass | helper 已死，窗口空 |
+| abort 文件清理 | pass | 写入 stage abort 文件后 helper 已死，窗口空。这是 Escape 写入的同一清理路径 |
+| 本机 2× 点位 | pass | 两块屏 scale 2；公式映射 primary_scale 2，hotspot `[32, 50]`，size 84 |
+| 1× 真机点位 | untested | 没有 1× 显示器 |
+| 3× 真机点位 | untested | 没有 3× 显示器 |
+| 负原点真机点位 | untested | 没有负 Cocoa origin 显示器 |
+| 负坐标确定性映射 | pass | `app::tests::negative_display_origin_maps_retina_pixels_and_guide` |
+| 物理 Escape 按键 | untested | POC 不注入全局 Escape |
+
+### 已跑命令
+
+- `python3 scripts/poc_mac_006_session.py`：在干净 `e6fa5e9` 复跑，`ok=true`，`dirty=false`。屏幕未锁。没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信，没有注入全局 Escape。
+- `cargo test -p vcu-server --offline --lib -- killed_helper_is_reaped_and_not_running`：`stage::tests::killed_helper_is_reaped_and_not_running` ok。
+- `cargo test -p vcu-server --offline --lib -- hidden_desktop_stage_rejects_app_mutation`：`api::abort_watch_tests::hidden_desktop_stage_rejects_app_mutation` ok。
+- `cargo test -p vcu-server --offline --lib -- negative_display_origin_maps_retina_pixels_and_guide`：`app::tests::negative_display_origin_maps_retina_pixels_and_guide` ok。
+- `cargo test -p vcu-server --offline --lib -- orphan_stage_helper_is_swept_when_daemon_is_dead`：`stage::tests::orphan_stage_helper_is_swept_when_daemon_is_dead` ok。
+
+### 不宣称
+
+- 不宣称物理 Escape 键已在真机按下。abort 文件是 Escape 写入的同一清理路径，按键本身未测。
+- 不宣称 1×、3× 或负原点显示器已做真机点位。负坐标只在确定性单测覆盖。
+- 不宣称锁屏时这套动作仍可用。锁屏会让 POC 在启动前失败。
+- 不宣称 `MAC-007`、`BR-001` 或 `CORE-001` 已领取。没有结束既有 AWR 会话。
+
 ## MAC-005
 
 更新：2026-10-14。最终绑定是干净 SHA `bfff2f420d2d2882fc7d5962628873efc8a6d977` 的 `.local/desktop-cu/mac-MAC-005.json`，`ok=true`，`dirty=false`，`completion_allowed=true`。代码提交就是这个 SHA。夹具是 `VCUAxBinding` 的 `scroll-a` / `scroll-b`，TextEdit 文档是 `VCU-MAC-005.txt`。

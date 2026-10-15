@@ -82,6 +82,8 @@ async fn mcp_initialize_and_session_tools() {
     let ins = init["result"]["instructions"].as_str().unwrap();
     assert!(ins.contains("vcu_browser_observe"), "{ins}");
     assert!(ins.contains("last observe"), "{ins}");
+    assert!(ins.contains("collapsed VCU"), "{ins}");
+    assert!(ins.contains("does not activate"), "{ins}");
     assert!(ins.contains("Never CDP Allow"), "{ins}");
     assert!(!ins.contains("click Allow"), "{ins}");
 

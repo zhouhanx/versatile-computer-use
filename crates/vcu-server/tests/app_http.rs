@@ -161,9 +161,11 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
 
     let poller_base = base.clone();
     let poller_token = token.clone();
+    let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::<serde_json::Value>::new()));
+    let seen_poller = seen.clone();
     let poller = tokio::spawn(async move {
         let c = reqwest::Client::new();
-        for _ in 0..80 {
+        for _ in 0..120 {
             let body: serde_json::Value = c
                 .get(format!("{poller_base}/v1/extension/poll?wait_ms=150&browser=edge&client_id=edge-test"))
                 .header("X-Vcu-Token", &poller_token)
@@ -179,6 +181,13 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
             if id.is_empty() || method.is_empty() {
                 continue;
             }
+            let params = data.get("params").cloned().unwrap_or_else(|| json!({}));
+            seen_poller.lock().expect("ext log").push(json!({
+                "method": method,
+                "tab_id": params.get("tab_id").cloned().unwrap_or(json!(null)),
+                "has_tab_id": params.get("tab_id").is_some(),
+                "dry_run": params.get("dry_run").cloned().unwrap_or(json!(null)),
+            }));
             let result = match method {
                 "list_tabs" => json!({
                     "ok": true,
@@ -236,7 +245,7 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                     }
                 }
                 "hover" => {
-                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!(null));
                     json!({"ok": true, "hovered": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
                 }
                 "click_point" => {
@@ -244,11 +253,11 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
                     json!({"ok": true, "pressed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
                 }
                 "type" => {
-                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!(null));
                     json!({"ok": true, "typed": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
                 }
                 "scroll" => {
-                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!("42"));
+                    let tab = data.get("params").and_then(|p| p.get("tab_id")).cloned().unwrap_or(json!(null));
                     json!({"ok": true, "scrolled": false, "dry_run": true, "source": "extension_dom", "tab_id": tab})
                 }
                 "capture_tab" => {
@@ -430,6 +439,65 @@ async fn snapshot_merges_extension_tabs_for_empty_ax_edge() {
     assert_eq!(hovered["data"]["tab_id"], "42");
     assert_eq!(hovered["data"]["tab_id_source"], "last_observe");
     assert_eq!(hovered["data"]["hovered"], false);
+
+    let live_click: serde_json::Value = auth(client.post(format!("{base}/v1/browser/click")))
+        .json(&json!({"selector": "a.more", "dry_run": false}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(live_click["ok"], true, "{live_click}");
+    assert_eq!(live_click["data"]["tab_id_source"], "agent_group");
+    assert!(live_click["data"]["tab_id"].is_null(), "{live_click}");
+    assert_ne!(live_click["data"]["extension"]["tab_id"], "42");
+
+    let live_type: serde_json::Value = auth(client.post(format!("{base}/v1/browser/type")))
+        .json(&json!({"selector": "input", "text": "hello", "dry_run": false}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(live_type["ok"], true, "{live_type}");
+    assert_eq!(live_type["data"]["tab_id_source"], "agent_group");
+    assert!(live_type["data"]["tab_id"].is_null(), "{live_type}");
+
+    let live_hover: serde_json::Value = auth(client.post(format!("{base}/v1/browser/hover")))
+        .json(&json!({"selector": "#pad", "dry_run": false}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(live_hover["ok"], true, "{live_hover}");
+    assert_eq!(live_hover["data"]["tab_id_source"], "agent_group");
+    assert!(live_hover["data"]["tab_id"].is_null(), "{live_hover}");
+
+    let live_scroll: serde_json::Value = auth(client.post(format!("{base}/v1/browser/scroll")))
+        .json(&json!({"dy": 80, "dry_run": false}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(live_scroll["ok"], true, "{live_scroll}");
+    assert_eq!(live_scroll["data"]["tab_id_source"], "agent_group");
+    assert!(live_scroll["data"]["tab_id"].is_null(), "{live_scroll}");
+
+    let rows = seen.lock().expect("ext log").clone();
+    for method in ["click", "type", "hover", "scroll"] {
+        let live = rows.iter().rev().find(|row| {
+            row["method"] == method && row["dry_run"] == false
+        });
+        let live = live.unwrap_or_else(|| panic!("missing live {method}"));
+        assert_eq!(live["has_tab_id"], false, "{method} {live}");
+        assert!(live["tab_id"].is_null(), "{method} requested tab {live}");
+    }
 
     let waited: serde_json::Value = auth(client.post(format!("{base}/v1/browser/wait")))
         .json(&json!({"selector": "title", "text": "edge-live", "ms": 500}))

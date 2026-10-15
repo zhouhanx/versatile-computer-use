@@ -673,6 +673,13 @@ pub fn reload_page_args(runtime_id: &str) -> Option<Vec<String>> {
     Some(vec![reload_page_url(runtime_id)?])
 }
 
+/// macOS `open -a` focuses the browser and replaces the page the user is viewing.
+/// A dead worker cannot place reload.html in the collapsed VCU group, so that
+/// visible fallback is refused. Connected workers use reload_self or open_reload_tab.
+pub fn visible_reload_page_allowed() -> bool {
+    !cfg!(target_os = "macos")
+}
+
 pub fn executable_from_command(command: &str) -> Option<std::path::PathBuf> {
     let command = command.trim();
     if command.is_empty() {
@@ -1084,6 +1091,54 @@ pub fn bind_app_id(
         .map(|l| l.app_id.clone())
 }
 
+fn tab_flag(tab: &Value, key: &str) -> bool {
+    tab.get(key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+fn tab_group_title(tab: &Value) -> Option<&str> {
+    tab.get("group")
+        .and_then(|group| group.get("title"))
+        .and_then(Value::as_str)
+        .or_else(|| tab.get("group_title").and_then(Value::as_str))
+}
+
+pub fn agent_group_title(title: &str) -> bool {
+    let name = title.trim();
+    name == "VCU" || name.starts_with("VCU-") || name.starts_with("VCU ")
+}
+
+/// The page the user is looking at. Agent windows, VCU groups, and named session surfaces are work surfaces.
+pub fn page_being_read(tab: &Value) -> bool {
+    if tab_flag(tab, "agent_owned") || tab_flag(tab, "agent_surface") {
+        return false;
+    }
+    if !tab_flag(tab, "active") && !tab_flag(tab, "focused") {
+        return false;
+    }
+    if tab_group_title(tab).is_some_and(agent_group_title) {
+        return false;
+    }
+    true
+}
+
+/// Drop a fresh last-observe binding when a real click/type/hover/scroll would hit
+/// the page being read. The extension then chooses the collapsed VCU group.
+/// Dry runs, explicit tabs, and other sources stay unchanged.
+pub fn release_reading_page_target(
+    dry_run: bool,
+    bound: (Option<String>, &'static str),
+    tab: Option<&Value>,
+) -> (Option<String>, &'static str) {
+    let (id, src) = bound;
+    if dry_run || src != "last_observe" {
+        return (id, src);
+    }
+    if tab.is_some_and(page_being_read) {
+        return (None, "agent_group");
+    }
+    (id, src)
+}
+
 
 /// Attach extension tabs onto a desktop.scene JSON without replacing AX targets/dom_refs.
 pub fn attach_extension_tabs_as_browser_tabs(body: &mut Value, app_id: &str, ext: &Value) {
@@ -1347,6 +1402,10 @@ mod tests {
         assert!(reload_page_args(id).unwrap()[0].contains("--remote-debugging") == false);
         assert!(!reload_page_args(id).unwrap()[0].contains("--app"));
         assert!(!reload_page_args(id).unwrap()[0].contains("--new-window"));
+        #[cfg(target_os = "macos")]
+        assert!(!visible_reload_page_allowed());
+        #[cfg(windows)]
+        assert!(visible_reload_page_allowed());
         assert!(!user_browser_is_running("firefox"));
         let prefs = r#"{"extensions":{"settings":{"hmmglhlabkppklocfnnbogpajolnijgl":{"path":"C:\\Users\\liyue\\.vcu\\lens-extension","from_webstore":false}}}}"#;
         assert_eq!(
@@ -1439,6 +1498,48 @@ mod tests {
         assert_eq!(bind_tab_id(None, Some(&stale), now), (None, "implicit"));
         assert_eq!(bind_app_id(None, Some(&last), now).as_deref(), Some("proc:Chrome:1"));
         assert!(bind_app_id(None, Some(&stale), now).is_none());
+    }
+
+    #[test]
+    fn release_reading_page_only_for_live_last_observe() {
+        let reading = json!({"tab_id":"42","active":true,"focused":true});
+        let vcu = json!({"tab_id":"7","active":true,"focused":true,"group":{"title":"VCU"}});
+        let session = json!({"tab_id":"8","active":true,"group_title":"VCU-session"});
+        let spaced = json!({"tab_id":"6","focused":true,"group":{"title":"VCU notes"}});
+        let background = json!({"tab_id":"9","active":false,"focused":false});
+        let agent_window = json!({"tab_id":"3","active":true,"focused":true,"agent_owned":true});
+        assert!(page_being_read(&reading));
+        assert!(!page_being_read(&vcu));
+        assert!(!page_being_read(&session));
+        assert!(!page_being_read(&spaced));
+        assert!(!page_being_read(&background));
+        assert!(!page_being_read(&agent_window));
+        let session = json!({"active": true, "focused": true, "agent_surface": true, "group": {"title": "Review"}});
+        assert!(!page_being_read(&session));
+        let user_group = json!({"active": true, "focused": true, "agent_surface": false, "group": {"title": "1"}});
+        assert!(page_being_read(&user_group));
+
+        let bound = (Some("42".to_string()), "last_observe");
+        assert_eq!(
+            release_reading_page_target(false, bound.clone(), Some(&reading)),
+            (None, "agent_group")
+        );
+        assert_eq!(
+            release_reading_page_target(true, bound.clone(), Some(&reading)),
+            bound
+        );
+        assert_eq!(
+            release_reading_page_target(false, (Some("7".to_string()), "explicit"), Some(&reading)),
+            (Some("7".to_string()), "explicit")
+        );
+        assert_eq!(
+            release_reading_page_target(false, bound.clone(), Some(&vcu)),
+            bound
+        );
+        assert_eq!(
+            release_reading_page_target(false, (None, "implicit"), Some(&reading)),
+            (None, "implicit")
+        );
     }
 
     #[test]

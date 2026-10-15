@@ -8,7 +8,9 @@
 
 Success criteria:
 
+- 安静窗停放请求的 top 是用户窗底边，不与正在看的页重叠。没有确认不抢前台的移动方式时，不得用会激活 Edge 的 AppleScript 当场挪窗，也不得为此重载扩展；真机挪窗记 not_run。
 - 最高准则：任务完成、阻塞，或准备 stop/挂起前，必须用 AWR 实查是否仍有可执行或待派发工作，并验明阻塞真假；禁止说谎；禁止未充分测试就标记完成；每个任务和阶段完成后必须落地标注和文档。见 AGENTS.md「最高准则」。
+- 浏览器操作不得替换用户正在使用的页面。Agent 只在自己的 VCU/session 标签组里工作。用户窗里的组保持折叠；安静窗里的 VCU 组在第一次揭示后保持展开，避免下次激活抬窗。不要用 AppleScript set URL 导航安静窗标签，它会抢走 Edge 的 last focused window。运行中的 daemon 没有 /v1/browser/navigate；不要为导航启动会话或重启 daemon。不聚焦用户窗口，不展开用户标签组。显式 select 除外。后台截图不得切走当前页。非 dry_run 的隐式 click/type/hover/scroll 不得把正在看的非 VCU 页的 last_observe 当成目标。若请求仍带上正在看的页，click/type/hover/scroll/keypress/snapshot 改打已有折叠 VCU/session 组并返回 released_reading_page；没有 Agent http 页时，在安静窗优先的折叠 VCU 组打开 https://example.com/ 再改打，不激活正在看的页。打开会替换该页时仍拒绝。不带 tab_id 的 click/type/hover/scroll/keypress/snapshot 同样先开这个工作页，不使用正在看的页。dry_run 不新开页，仍拒绝。extract、close、click_point 和分组不改打。navigate 若目标是正在看的页，不改该页地址，改为在安静窗或折叠 VCU 组打开请求的 URL。close_tab、click_point 不改打别的页。非活动工作页的 content messaging 超时后，只在安静窗激活再重试并回排。dry_run 不激活。页面返回 ok:false 不重放。
 - 需求与方案文档回答：语言选型、浏览器不打断/接管架构、视觉与主子协同、接入面、分期边界。
 - 选定跨平台技术栈（至少覆盖 macOS 与 Windows 交付形态）。
 - 明确与 BrowserSkill、Codex Browser/CU、CDP 方案的差异化与边界。

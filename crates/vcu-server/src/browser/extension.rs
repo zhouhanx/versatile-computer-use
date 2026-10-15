@@ -77,17 +77,10 @@ fn split_client_key(id: &str) -> Option<(&str, &str)> {
 fn open_extension_reload_page(browser: &str, runtime_id: &str) -> bool {
     #[cfg(target_os = "macos")]
     {
-        let app = match browser {
-            "edge" => "Microsoft Edge",
-            "chrome" => "Google Chrome",
-            _ => return false,
-        };
-        let url = format!("chrome-extension://{runtime_id}/reload.html");
-        std::process::Command::new("open")
-            .args(["-a", app, &url])
-            .status()
-            .map(|st| st.success())
-            .unwrap_or(false)
+        let _ = (browser, runtime_id);
+        // Do not `open -a`. That focuses the browser and replaces the page the
+        // user is viewing. A dead worker cannot open a collapsed VCU-group tab.
+        false
     }
     #[cfg(windows)]
     {
@@ -535,6 +528,10 @@ impl ExtensionBridge {
     }
 
     pub async fn reload_all_clients(&self) -> VcuResult<serde_json::Value> {
+        self.reload_clients(true).await
+    }
+
+    pub async fn reload_clients(&self, allow_page_reload: bool) -> VcuResult<serde_json::Value> {
         let ids = self.active_client_ids().await;
         let mut reloaded = Vec::new();
         if ids.is_empty() {
@@ -549,8 +546,12 @@ impl ExtensionBridge {
                     reloaded.extend(rows);
                     continue;
                 }
+                if !allow_page_reload {
+                    reloaded.extend(rows);
+                    continue;
+                }
                 if let Some((browser, rid)) = split_client_key(&id) {
-                    let mut row = self.confirm_extension_page_reload(browser, rid).await;
+                    let mut row = self.confirm_quiet_reload(&id, browser, rid).await;
                     if let Some(err) = rows.first().and_then(|v| v.get("error")) {
                         row["reload_self_error"] = err.clone();
                     }
@@ -564,7 +565,7 @@ impl ExtensionBridge {
             .iter()
             .filter(|v| v.get("ok").and_then(|x| x.as_bool()) == Some(true))
             .count();
-        if ok_n == 0 {
+        if ok_n == 0 && allow_page_reload {
             for kind in ["edge", "chrome"] {
                 let Some(id) = crate::login_state::installed_lens_runtime_id(kind) else {
                     continue;
@@ -599,6 +600,68 @@ impl ExtensionBridge {
         }))
     }
 
+
+    async fn confirm_quiet_reload(
+        &self,
+        client_id: &str,
+        browser: &str,
+        runtime_id: &str,
+    ) -> serde_json::Value {
+        match self
+            .call_timeout_for(
+                Some(client_id.to_string()),
+                "open_reload_tab",
+                serde_json::json!({}),
+                4,
+            )
+            .await
+        {
+            Ok(opened) => {
+                let pong = self.wait_for_pong(8).await;
+                let closed = self.close_reload_tabs().await;
+                return match pong {
+                    Ok(v) => serde_json::json!({
+                        "ok": true,
+                        "page_reload": true,
+                        "background_group": true,
+                        "activated_user_page": false,
+                        "browser": browser,
+                        "confirmed": true,
+                        "closed_reload_tabs": closed,
+                        "tab_id": opened.get("tab_id").cloned().unwrap_or(serde_json::Value::Null),
+                        "ping": v,
+                    }),
+                    Err(e) => serde_json::json!({
+                        "ok": false,
+                        "page_reload": true,
+                        "background_group": true,
+                        "activated_user_page": false,
+                        "browser": browser,
+                        "confirmed": false,
+                        "closed_reload_tabs": closed,
+                        "error": e,
+                    }),
+                };
+            }
+            Err(e) => {
+                if !crate::login_state::visible_reload_page_allowed() {
+                    return serde_json::json!({
+                        "ok": false,
+                        "page_reload": false,
+                        "background_group": false,
+                        "activated_user_page": false,
+                        "browser": browser,
+                        "error": format!(
+                            "reload tab refused without replacing the current page: {}",
+                            e.message()
+                        ),
+                    });
+                }
+                let _ = e;
+            }
+        }
+        self.confirm_extension_page_reload(browser, runtime_id).await
+    }
 
     async fn confirm_extension_page_reload(&self, browser: &str, runtime_id: &str) -> serde_json::Value {
         let opened = open_extension_reload_page(browser, runtime_id);
@@ -761,9 +824,26 @@ impl ExtensionBridge {
         browser: Option<&str>,
     ) -> VcuResult<serde_json::Value> {
         let tab = json_id(params.get("tab_id"));
+        let want = named_browser(browser.unwrap_or(""));
+        if let (Some(tab_id), Some(want)) = (tab.as_deref(), want) {
+            if let Some(owner) = self.unique_client_for_tab(tab_id).await {
+                if !owner.starts_with(&format!("{want}:")) {
+                    return Err(VcuError::coded(
+                        ErrorCode::ActionFailed,
+                        "tab belongs to a different browser; refusing to use another browser",
+                    ));
+                }
+            }
+        }
         let target = self
             .target_client_for_action(tab.as_deref(), browser)
             .await;
+        if want.is_some() && target.is_none() {
+            return Err(VcuError::coded(
+                ErrorCode::ActionFailed,
+                "requested browser extension is not connected; refusing to use another browser",
+            ));
+        }
         self.call_timeout_for(target, method, params, timeout_secs)
             .await
     }
@@ -773,12 +853,16 @@ impl ExtensionBridge {
         tab_id: Option<&str>,
         browser: Option<&str>,
     ) -> Option<String> {
+        let kind = browser.and_then(named_browser);
         if let Some(tab) = tab_id.map(str::trim).filter(|s| !s.is_empty()) {
             if let Some(id) = self.unique_client_for_tab(tab).await {
+                if kind.is_some_and(|want| !id.starts_with(&format!("{want}:"))) {
+                    return None;
+                }
                 return Some(id);
             }
         }
-        let kind = named_browser(browser.unwrap_or(""))?;
+        let kind = kind?;
         self.client_for_browser(kind).await
     }
 

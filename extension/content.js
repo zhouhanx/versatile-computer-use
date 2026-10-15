@@ -738,14 +738,81 @@ function hoverDom(selector, dryRun) {
   });
 }
 
+function pickOffset(values) {
+  const nums = values.map(Number).filter(Number.isFinite);
+  if (!nums.length) return 0;
+  return nums.reduce((best, n) => Math.abs(n) > Math.abs(best) ? n : best, nums[0]);
+}
+
+function readScrollOffset() {
+  const win = globalThis.window || {};
+  const el = globalThis.document?.scrollingElement || globalThis.document?.documentElement;
+  return {
+    x: pickOffset([win.scrollX, win.pageXOffset, el?.scrollLeft]),
+    y: pickOffset([win.scrollY, win.pageYOffset, el?.scrollTop]),
+  };
+}
+
+function windowScrollOffset() {
+  const win = globalThis.window || {};
+  return {
+    x: pickOffset([win.scrollX, win.pageXOffset]),
+    y: pickOffset([win.scrollY, win.pageYOffset]),
+  };
+}
+
+function applyScrollOffset(dx, dy) {
+  const before = windowScrollOffset();
+  const win = globalThis.window;
+  try { win?.scrollBy?.(dx, dy); } catch (_) {}
+  let after = windowScrollOffset();
+  if (after.x === before.x && after.y === before.y && (dx !== 0 || dy !== 0)) {
+    const el = globalThis.document?.scrollingElement || globalThis.document?.documentElement;
+    if (el) {
+      try {
+        if (typeof el.scrollTo === "function") el.scrollTo(before.x + dx, before.y + dy);
+        else {
+          el.scrollLeft = before.x + dx;
+          el.scrollTop = before.y + dy;
+        }
+      } catch (_) {}
+      after = windowScrollOffset();
+    }
+  }
+  return { before, after };
+}
+
 function scrollDom(dy, dryRun) {
   const y = Number(dy) || 0;
   if (dryRun) {
     return { ok: true, scrolled: false, dry_run: true, dy: y, source: "extension_dom", os_cursor_used: false };
   }
-  if (typeof window?.scrollBy !== "function") return reject("window.scrollBy unavailable");
-  window.scrollBy(0, y);
-  return { ok: true, scrolled: true, dy: y, source: "extension_dom", os_cursor_used: false };
+  if (typeof window?.scrollBy !== "function" && !(document?.scrollingElement || document?.documentElement)) {
+    return reject("window.scrollBy unavailable");
+  }
+  const moved = applyScrollOffset(0, y);
+  const changed = moved.after.y !== moved.before.y || moved.after.x !== moved.before.x;
+  if (y !== 0 && !changed) {
+    return {
+      ok: false,
+      scrolled: false,
+      dy: y,
+      scroll_y: moved.after.y,
+      scroll_before: moved.before.y,
+      error: "scroll did not move the page",
+      source: "extension_dom",
+      os_cursor_used: false,
+    };
+  }
+  return {
+    ok: true,
+    scrolled: changed,
+    dy: y,
+    scroll_y: moved.after.y,
+    scroll_before: moved.before.y,
+    source: "extension_dom",
+    os_cursor_used: false,
+  };
 }
 
 function resolveUniqueSelector(selector) {

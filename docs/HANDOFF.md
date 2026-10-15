@@ -1,5 +1,503 @@
 # 会话交接
 
+## 2026-10-15：BR-001 脏树基线与断连重连通过，仍不能完成
+
+2026-10-15 官方 POC `scripts/poc_browser_br_001_macos.py` 在脏工作树上 `ok=true`，`completion_allowed=false`。Chrome 和 Edge 基线都 pass。受保护页没被替换：Edge Apple 页 `1828173166`、Chrome 必应页 `1934573032` 仍 focused。前台始终是 Hearthstone。夹具开在各自安静窗折叠组，测完已关，没有落回正在看的窗。断连停掉当时的 daemon 后 ping 诚实失败，再按 `target/debug/vcu-daemon --user-dir ~/.vcu` 拉起，USER 扩展重连，`quiet_open=own-window`。没有冷启动，没有点 Allow，没有改 profile。扩展单测 104 通过、0 失败。`background.js` SHA256 `21c52d21ac682bb9b630a1211688462f87868e64fc5de3af36c6428b6a9ffb0c`。keypress、snapshot、现场挪窗和 live stale SW 仍 not_run。Edge 截图采样没有记录受保护 CG 窗口 id，不能补写成几何已证明。提交前 HEAD 是 `e6fa5e9`，工作树脏。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。证据 `.local/browser-cu/br-001.json`、`.local/browser-cu/br-001-reverse.json`。
+
+- 反向探针 `.local/browser-cu/br-001-reverse.json`：`pass=true`。停服后 health 为 false，CLI ping 不是 ok。重启后 `extension_profile=user`，焦点页和前台都没变，Chrome/Edge 主进程没被重新拉起。
+- 官方 POC 随后又停服一次并重连，`reverse_disconnect=pass`，`reconnect_after_daemon_restart=pass`，`no_cold_start=pass`。结束后 daemon 是 `target/debug/vcu-daemon --user-dir ~/.vcu`。
+- 夹具标签已关。用户窗里旧的折叠 `example.com` `1828173152` 不是本轮夹具，没有关。
+- 这不是完成。干净 SHA 复跑且 `completion_allowed=true` 之前，源状态保持 planned。
+
+
+## 2026-10-15：BR-001 折叠组提取读到真实段落，h1 缺失不再谎称没读到
+
+当前正在看的页是 Apple 支持页 `1828173166`，不是飞书页。工作页 `1828173152` 在用户窗 `1828171349` 的折叠 VCU 组 `2112453533`。`example.com` 现在没有 `h1`，标题文字由 `/s.js` 写成段落。上一轮把选择器落空写成 `extract did not read the page`，这是假失败。
+
+- `node --test extension/tests/background.test.cjs`：75 通过，0 失败。已渲染且正文有文本、但选择器没有文本时，返回 `selector matched no text` 和 `read_page=true`，不展开组，不重载，不编造 `Example Domain`。空文档仍走展开或原地重载。
+- 工作树和 `~/.vcu/lens-extension/background.js` SHA256 都是 `429a31d79a47b2cbd48dcad081d8cb6277bfb8e2e9333a9491004d5a62c2949a`。`allow_page_reload=false` 重载返回 `reloaded=1`。再 ping 是 `quiet_extract=document-idle`。
+- 点名 `1828173152` 的 `p` 提取 HTTP 200，`count=6`，首条是 `该域名仅用于文档示例，无需获得许可。这并非一项服务，请勿将其用于测试和监控目的。`，`page_url=https://example.com/`。同一页的 `h1` 提取 HTTP 400，detail 是 `selector matched no text: sel=h1 url=https://example.com/`，`read_page=true`，`stage=idle`。没有写成读取失败，也没有编造 `h1`。
+- 重载和两次提取前后，Apple 页 `1828173166` 都是 focused，地址 `https://support.apple.com/zh-cn/111111` 没变。工作页仍 `active=false`。VCU 组仍折叠。标签 id 集合没变。没有 `tabs.update` 正在看的页，没有建窗，没有用 AppleScript。
+- Chrome 未运行，记 `not_run`。断连未停 daemon `10393`，记 `not_run`。现场挪窗和 CG 记 `not_run`。keypress 和 snapshot 仍 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-quiet-extract.json` 和 `.local/browser-cu/br-001-selector-miss.json`。
+
+
+## 2026-10-15：BR-001 运行中的扩展不再切走正在看的页
+
+用户要求浏览器操作留在自己的标签组，不移动正在使用的页面。上一轮源码已拒绝建窗、激活和 AppleScript，但安装目录还是旧服务工作者：ping 是 `quiet_raise=restack-after-activate`，`quiet_inject=activate-then-retry`。本轮只装入这个隔离，不用 AppleScript 挪窗。
+
+- `extension/tests/background.test.cjs`：71 通过，0 失败。停放重叠窗不再要求零 fetch；bootstrap 请求不是 helper。断言改为没有 `/stage` 或 `/restack`，几何和正在看的页保持不动。`select_tab` 不再返回 `activated=true`，因为这条路径没有 `tabs.update`。
+- 工作树和 `~/.vcu/lens-extension/background.js` SHA256 都是 `6dd469abba48b0bd141cb57856436ea7cab502aa4b4627b6ee01561f55353278`。`allow_page_reload=false` 的重载返回 `reloaded=1`。再 ping 是 `quiet_raise=never`，`quiet_helper=no-applescript`，`quiet_park=dock-clear`，`quiet_inject=in-place`，`quiet_message=in-place`。
+- 重载前后飞书页 `1828171512` 都是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。工作页 `1828173126` 仍在安静窗 `1828173041` 的 VCU 组 `48700119`，`active=true`，`focused=false`，地址没变。没有重载这个夹具页。
+- 点名工作页的 select HTTP 400，`activated=false`，错误是 `select refused without moving the page being read`。飞书页仍 focused。System Events 前台重载前后都是 ghostty。没有对飞书页发送可执行动作。
+- 现场挪窗和 CG 几何本轮记 not_run。没有 Quartz 模块，不用会激活 Edge 的 AppleScript。不能把上一轮的 `1420,880` 写成这次又测过。
+- Chrome 未运行，记 not_run，没有冷启动。断连未停 daemon `10393`，记 not_run。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。keypress 和 snapshot 仍 not_run。源状态仍 planned，不能完成。
+- 没有自动领取下一项：`BR-001` 仍是当前领取，AWR ready 被 `active_claim` 挡住。用户要求先完成 `BR-001`。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-tab-group-no-interrupt.json`。
+
+## 2026-10-15：BR-001 停放请求改为贴用户窗底边，现场窗未挪
+
+用户要求浏览器操作留在自己的标签组，不移动正在使用的页面。本轮只改停放公式和单测，没有重载扩展，没有重启 daemon，没有冷启动 Chrome，没有用会激活 Edge 的 AppleScript 挪现场窗。
+
+- `quietParkBounds` 的 top 改为用户窗底边 `workBottom`，不再用 `screenHeight - 200`。那条旧公式会压进正在看的页 76px。`quietDockBounds` 与它相同。ping 增加 `quiet_park=dock-clear`，运行中的扩展还没有这个字段。
+- `node --test extension/tests/background.test.cjs`：71 通过，0 失败。新增回归要求停放请求不与用户窗重叠，已经贴底的安静窗不再 `/stage`。
+- 工作树与 `~/.vcu/lens-extension/background.js` SHA256 都是 `eb3ac93dba9ea4d16ae24dd47e91862c412c8b15900293e080b1a9b7912f2f6e`。没有重载。ping 仍是旧服务工作者，没有 `dock-clear`，仍有 `quiet_prefer=quiet-window`。
+- 只读复核：飞书页 `1828171512` 仍是用户窗 `1828171349` 的活动且 focused 页，地址没变。工作页 `1828173126` 仍在安静窗 `1828173041` 的 VCU 组 `48700119`，`active=true`，`focused=false`，组仍展开。哔哩哔哩页未换窗。System Events 前台是 ghostty。CG 顺序是 Ghostty `2039`、飞书窗 `7243` `0,30` 的 `1920x926`、安静窗 `20648` `1420,880` 的 `500x375`。几何上仍重叠 76px，但排在飞书窗后面，这次没有盖住。
+- 现场挪到 `1420,956` 记 not_run。AX 读位置返回 `-25205`。System Events 看到 Edge 窗口数为 0，读的时候没有抢走 ghostty。`chrome.windows.update` 会抬起安静窗。`tell application "Microsoft Edge"` 会激活 Edge。没有确认不抢前台的移动方式，所以没有挪。
+- Chrome 主进程不在，记 not_run，没有冷启动。断连未停 daemon `10393`，它仍听 `127.0.0.1:17890`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。keypress 和 snapshot 仍 not_run。源状态仍 planned，不能完成。
+- 没有自动领取下一项：`BR-001` 仍是当前领取，AWR ready 被 `active_claim` 挡住。`CORE-001` 只是可领取。用户要求先完成 `BR-001`。没有 `BR00`。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-dock-clear.json`。
+
+
+## 2026-10-15：BR-001 工作页点击不切飞书页，源状态仍不能完成
+
+用户要求浏览器操作留在自己的标签组，不移动正在使用的页面。本轮没有改代码，没有重载扩展，没有重启 daemon，没有冷启动 Chrome。
+
+- 扩展 SHA256 `5a736eba258ebb0e2517eee73f46049b345eac7c277b3352a30ed72147b1f031`，工作树与 `~/.vcu/lens-extension/background.js` 一致。ping 版本 `0.2.8`，含 `quiet_prefer=quiet-window`、`quiet_nav_keep=stay-active`、`quiet_open_reuse=in-place`、`quiet_reading=never-move`。上一节记录的 `0f2ee3c8` 不是当前文件哈希。
+- `node --test extension/tests/background.test.cjs`：70 通过，0 失败。
+- 点名工作页 `1828173126` 的 `input#marker` click HTTP 200，`pressed=true`，`via=content_message`，`input_path=dom_click`，`tag=INPUT`，`focused=false`。回执没有 `background_action`，不能写成 false。没有 `released_reading_page`。
+- 飞书页 `1828171512` 前后都是用户窗 `1828171349` 的活动且 focused 页，地址没变。Edge 里该窗 index 仍是 1，bounds `0,30,1920,956`。安静窗 `1828173041` index 2，bounds `1420,880,1920,1255`，没有盖住飞书窗。工作页仍 `active=true`、`focused=false`，VCU 组 `48700119` 仍展开。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。
+- 前台采样 2 次都是 Ghostty，不能写成绝对零闪烁。没有对飞书页发送可执行动作，没有重载 `1828173126`。
+- Chrome 主进程不在，记 not_run，没有冷启动。断连未停 daemon `10393`，记 not_run。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。`/v1/browser/key` 仍只计划并返回 `pressed=false`，不调用扩展 keypress。没有不启动会话的 snapshot 路由。这两项记 not_run。源状态仍 planned，不能完成。
+- 没有自动领取下一项：`BR-001` 仍是当前领取，AWR ready 被 `active_claim` 挡住。`CORE-001` 只是可领取。用户要求先完成 `BR-001`，而 Chrome、断连和干净 SHA 仍缺。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-quiet-prefer-recheck.json`。
+
+## 2026-10-15：BR-001 带 tab_id 的 open 原地更新未聚焦工作页
+
+用户要求浏览器操作不要移动正在使用的页面，要在自己的标签组里工作。运行中的 daemon 没有 `POST /v1/browser/navigate`。没有启动会话，没有重启 daemon。
+
+- `extension/tests/background.test.cjs` 68 项通过，0 失败。带 `tab_id` 的 `open_tab` 原地更新未聚焦 Agent 页，不新建标签，不 `windows.update({focused:true})`，不调用 quiet helper `/restack`。正在看的页改在安静窗折叠 VCU 组打开。非 Agent 用户页拒绝且不改。
+- 扩展 SHA256 `0f2ee3c8c7e0c339c7e11ed90321c82b9512f223998bf1736cf87a16ea078a3b`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 重载返回 `reloaded=1`。ping `quiet_open_reuse=in-place`，同时保留 `quiet_keep=stay-active` 和 `quiet_reading=never-move`。版本 `0.2.8`。
+- 真机 `POST /v1/browser/open` 点名 `1828173126`，URL `http://127.0.0.1:58472/inplace`，HTTP 200，`in_place=true`，`reused=true`，`active=true`，`window_id=1828173041`。没有新建标签。标题读回 `VCU BR-001 in-place`。
+- 随后点名该页 `input#marker` type HTTP 200，`typed=true`，`via=content_message`，`input_path=dom_type`，`focused=false`。回执没有 `background_action`，不能写成 false。extract HTTP 200，读回 `vcu-br001-inplace-type`。
+- 飞书页 `1828171512` 重载、打开和输入后仍是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。没有对飞书页发送可执行动作，没有关闭 `1828173126`。打开期间 4 次前台采样都是 Ghostty，最大间隔 0.24 秒，不能写成绝对零闪烁。
+- 夹具进程在 URL 确认后已停。不要重载 `1828173126`，否则会变成连接失败页。keypress 和扩展 snapshot 仍 not_run。daemon `10393` 未重启。Chrome 未运行，记 not_run。断连未测，记 not_run。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-open-reuse.json` 和 `.local/browser-cu/br-001-open-reuse-type.json`。
+
+
+## 2026-10-15：BR-001 已 active 工作页输入和滚动读回，AppleScript 导航会抢走 Edge 焦点
+
+用户要求浏览器操作不要移动正在使用的页面，要在自己的标签组里工作。运行中的 daemon 没有 `POST /v1/browser/navigate`，返回 404。没有启动会话，没有重启 daemon，没有重载扩展。
+
+- 只读复核时，飞书页 `1828171512` 是用户窗 `1828171349` 的活动且 focused 页。工作页 `1828173126` 是安静窗 `1828173041` 的 example.com，`active=true`，`focused=false`，VCU 组 `48700119` 展开。OS 前台是 Ghostty。
+- 已 active 工作页的截图证据仍在 `.local/browser-cu/br-001-stay-active-actions.json`：原地 `captureVisibleTab`，`background_capture=false`，PNG 是 example.com，不是飞书。那次 type 是 HTTP 400，不是成功输入。
+- 为了给已 active 的工作页一个输入框，本轮用 AppleScript 只改安静窗里 example.com 标签的地址，没有改飞书窗。OS 前台采样 2 次都是 Ghostty，间隔 0.199 秒。但 Edge 的 last focused window 被改到安静窗：飞书页 `focused` 变成 false，工作页 `focused` 变成 true。这不是安全导航，不要再用。
+- 修复是 `POST /v1/browser/select` 点名飞书页，再激活 Ghostty。修复期间 16 次采样都是 Ghostty。之后飞书页恢复 focused，地址没变。工作页仍在安静窗，`active=true`，`focused=false`，地址是本机夹具，标题是 `VCU BR-001 fixture`。夹具进程随后已退出，不要重载这个标签。
+- 修复后点名 `1828173126` 的 `input#marker` type HTTP 200，`typed=true`，`via=content_message`，`input_path=dom_type`，`focused=false`。回执没有 `background_action`，不能写成 false。extract HTTP 200，读回 `vcu-br001-1792019564`。scroll `dy=640` HTTP 200，`scrolled=true`，`scroll_before=0`，`scroll_y=640`，`via=content_message`，`focused=false`。
+- 动作前后飞书页仍是用户窗的活动且 focused 页，哔哩哔哩页 `1828171351`、`1828171545` 未换窗。没有对飞书页发送可执行动作，没有关闭 `1828173126`。type 和 scroll 的前台采样各 2 次，都是 Ghostty，间隔 0.203 秒。extract 只有 1 次采样。不能写成绝对零闪烁。
+- keypress 和扩展 snapshot 仍没有不启动会话的浏览器 HTTP 路由，记 not_run。daemon `10393` 未重启。Chrome 未运行，记 not_run。断连未测，记 not_run。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-stay-active-input.json`。
+
+# 会话交接
+
+## 2026-10-15：BR-001 安静窗工作页动作后保持 active
+
+用户要求浏览器操作不要移动正在使用的页面，要在自己的标签组里工作。已在安静窗的 Agent 页，动作后不再交还给 `about:blank`。组保持展开，标签保持 active，下一次动作不必再 `tabs.update({active:true})`，也就不会再次抬起安静窗。用户窗里的 VCU 页仍搬入后归还，不能留成用户窗的活动页。
+
+- `extension/tests/background.test.cjs` 65 项通过，0 失败。安静窗挂起回退后工作页保持 active；第二次截图不再 `tabs.update` 同一页。用户窗路径仍归还。
+- 扩展 SHA256 `3c67eab85d30d8fd373f54b76aec3e6e87f444b43395b118d88dcd63bab3a866`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 重载返回 `reloaded=1`。ping `quiet_keep=stay-active`，同时保留 `quiet_message=activate-then-retry` 和 `quiet_reading=never-move`。版本 `0.2.8`。
+- 真机连续两次 `POST /v1/browser/click` 点名 `1828173126` 的 `body`，HTTP 200，`pressed=true`，`focused=false`，`source=extension_dom`。点击前工作页 `active=false`、VCU 组折叠；两次之后 `active=true`，组 `48700119` 展开，仍在安静窗 `1828173041`。前台采样 9 次都是 Ghostty。
+- 工作页已经 active 后再点一次 `body`，HTTP 200，`via=content_message`，回执没有 `background_action`，没有走非活动揭示路径。前台采样仍是 Ghostty。
+- 飞书页 `1828171512` 重载和点击前后都是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。没有对飞书页发送可执行动作，没有关闭 `1828173126`。
+- 前两次点击的扩展层 `via`/`background_action` 没记下来，不能把那两次写成 `background_action=false`。采样间隔约 0.15 秒，不能写成绝对零闪烁。daemon `10393` 未重启。Chrome 未运行，记 `not_run`。断连未测，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-stay-active.json`。
+
+
+## 2026-10-15：BR-001 非活动工作页消息超时后只在安静窗激活
+
+用户要求浏览器操作不要移动正在使用的页面，要在自己的折叠标签组里工作。content messaging 在非活动 Agent 页上可能挂起。超时后只在安静窗激活再重试，并立刻回排。不 `tabs.update` 正在看的页。`dry_run` 不激活。页面返回 `ok:false` 不重放。
+
+- `extension/tests/background.test.cjs` 64 项通过，0 失败。新增安静窗消息挂起回退、用户窗 VCU 标签搬入后归还、非 VCU 页拒绝。
+- 扩展 SHA256 `583e9a74460d4d2c3fbee28237b576ed51eac410199a3cc9fee79260d8324df7`，工作树与 `~/.vcu/lens-extension/background.js` 一致。本轮没有再重载。ping 是 `quiet_message=activate-then-retry`，同时保留 `quiet_inject=activate-then-retry` 和 `quiet_reading=never-move`。版本 `0.2.8`。
+- 真机 `POST /v1/browser/click` 点名 `1828173126`，选择器 `body`，HTTP 200。`pressed=true`，`via=content_message`，`background_action=true`，`focused=false`，`tab_id_source=explicit`，`page_url=https://example.com/`。这是一次安静窗挂起回退的真机证据，不是所有动作的证据。
+- 飞书页 `1828171512` 点击前后都是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。example.com 仍在安静窗 `1828173041` 的折叠 VCU 组 `48700119`，`active=false`。OS 前台仍是 Ghostty。
+- 先前 `h1` 点击 HTTP 400，detail 是 `selector not found`，页面仍是 example.com。那次不能当成回退证据。
+- 没有在点击期间采样，不能写成零闪烁。daemon `10393` 未重启。服务端 `release_reading_page_target` 未加载。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-quiet-message.json`。
+
+## 2026-10-15：BR-001 非活动工作页注入超时后只在安静窗激活
+
+用户要求浏览器操作不要移动正在使用的页面。上一轮点名安静窗里的 example.com 时，截图在进安静窗路径前就返回 `inject timeout`，`dy=0` 滚动的 `executeScript` 没有时限，打到命令超时。本轮把原地脚本限制在 800ms。超时后，已在安静窗的 Agent 标签只在该窗内激活并回排，不 `tabs.update` 正在看的页，也不新建窗口。用户窗里的非活动 VCU 标签仍走原来的安静窗搬入再归还。非 VCU 页超时后拒绝，不搬。
+
+- `extension/tests/background.test.cjs` 61 项通过，0 失败。新增「inactive quiet-window script hang retries after activation and leaves the reading page」和「inactive user page script hang does not enter the quiet window」。
+- 扩展 SHA256 `edf575956b029c1b11101d04fac3075a430689d9c51e9c7152cf0019898bf219`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 重载返回 `reloaded=1`。再 ping 是 `quiet_inject=activate-then-retry`，同时保留 `quiet_raise=restack-after-activate`、`quiet_open=agent-group` 和 `quiet_reading=never-move`。
+- 真机 `POST /v1/browser/screenshot` 点名 `1828173126`，HTTP 200。截图窗口是安静窗 `1828173041`，`page_url=https://example.com/`，PNG 是 example.com，不是飞书。飞书页 `1828171512` 仍是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。example.com 仍在安静窗折叠 VCU 组，`active=false`。OS 前台仍是 Ghostty。
+- 随后 `dy=0` 滚动同一工作页 HTTP 200，`background_scroll=false`。这是截图注入之后的原地读取，不是单独证明滚动挂起回退。滚动挂起后激活只在单测里证明。
+- daemon `10393` 未重启。服务端 `release_reading_page_target` 未加载。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-quiet-inject.json`。
+
+
+
+## 2026-10-15：BR-001 安静窗激活后立即回排，不搬正在看的页
+
+用户要求浏览器操作不要移动正在使用的页面，要像 Codex Computer Use 一样在自己的折叠标签组里工作，不打断当前使用。默认打开已经进安静窗折叠 VCU 组。本轮补的是后台截图和滚动回退：Edge 在 `tabs.update({active:true})` 时会聚焦安静窗。激活后立刻按窗口 id 回排，不用 `windows.update({focused:true})`。把标签搬回用户窗之前，先把安静窗的活动标签交还原标签，避免活动标签回移时替换正在看的页。
+
+- `extension/tests/background.test.cjs` 59 项通过，0 失败。新增「quiet window activation restacks before it can cover the page being read」。模拟 Edge 激活即抢焦点后，回排把焦点还到用户窗，正在看的页没有 `tabs.move` 或 `tabs.update`。
+- 扩展 SHA256 `b87f48b77380aa45392f30d6d276ee86fe9a0620dc60b6c9143508586cc87ce9`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 重载返回 `reloaded=1`。再 ping 是 `quiet_raise=restack-after-activate`，同时保留 `quiet_open=agent-group` 和 `quiet_reading=never-move`。
+- 只读复核：飞书页 `1828171512` 重载前后都是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。example.com 页 `1828173126` 仍在安静窗 `1828173041` 的折叠 VCU 组，`active=false`。OS 前台仍是 Ghostty。
+- 点名 example.com 的截图返回 `inject timeout`，发生在搬移之前。`dy=0` 滚动返回 `command timeout`。两次都没有搬走飞书页，也不能写成安静窗激活回排已在真机走通。真机激活回排记 `not_run`。
+- daemon `10393` 未重启。服务端 `release_reading_page_target` 未加载。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-quiet-raise.json`。
+
+
+## 2026-10-15：BR-001 默认打开留在安静窗折叠组
+
+用户要求浏览器操作不要移动正在使用的页面，要像 Codex Computer Use 一样在自己的标签组里工作。默认 `open_tab` 以前落在用户当前窗口。现在优先已有安静窗的折叠 VCU 组，并且不激活新标签，避免 Edge 抬起该窗。没有安静窗时才退回用户窗折叠组。显式 `group_id` 和 `new_window` 不变。`select` 仍是显式切换。
+
+- `extension/tests/background.test.cjs` 58 项通过，0 失败。有安静窗时 open 进入窗口 `9`，用户页 URL、active 和焦点不变，新标签保持 inactive。
+- 扩展 SHA256 `e77d6a5fff1a154d863090ca58c06cc01aabef054d171690c1680e46c64e19af`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 重载后 ping `quiet_open=agent-group`。
+- 真机 `POST /v1/browser/open` 打开 `https://example.com/`。新页 `1828173126` 在安静窗 `1828173041`，组 `VCU` 折叠，`active=false`，`focused=false`，`page_being_read=false`。飞书页 `1828171512` 仍是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。OS 前台仍是 Ghostty。没有对飞书页发送 click 或 navigate。example.com 留在安静窗折叠组，作为工作页，没有关掉。
+- daemon `10393` 未重启。服务端 `release_reading_page_target` 未加载。扩展侧打开改道已加载。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+- 没有自动领取下一项：`BR-001` 仍是当前领取，AWR ready 被 `active_claim` 挡住。`CORE-001` 只是可领取。用户要求先完成 `BR-001`，而它还没有 Chrome、断连和干净 SHA 证据。
+
+证据是 `.local/browser-cu/br-001-open-quiet.json`。
+
+
+## 2026-10-15：BR-001 没有工作页时隐式动作也先开折叠组
+
+不带 `tab_id` 的 `click`、`type`、`hover`、`scroll`、`keypress`、`snapshot`，在没有可注入的 Agent http 页时，不再返回 `no agent tab`。扩展在已有安静窗的折叠 VCU 组打开 `https://example.com/`；没有安静窗时才在用户窗折叠 VCU 组打开，并且不激活正在看的页。动作打到新页，回执带 `ensured_agent_tab` 和 `tab_id_source=agent_group`。`dry_run` 不新开页，仍拒绝。`extract`、`close_tab`、`click_point` 和分组不走这条路。点名正在看的页的改打保持上一轮行为。
+
+- `extension/tests/background.test.cjs` 57 项通过，0 失败。安静窗存在时，不带 `tab_id` 的 click 把 `https://example.com/` 开在窗口 `9` 的折叠 VCU 组，用户页 URL、active 和窗口不变，click 不发给用户页。`dry_run` 不创建该页。
+- 扩展 SHA256 `918ecb2940ac9cb49fed2088406aeefa659f5e0c96e4b83434f03d260193316a`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 重载返回 `reloaded=1`。再 ping 是 `quiet_implicit=ensure-group`，同时保留 `quiet_work=ensure-group` 和 `quiet_reading=never-move`。
+- 只读复核：飞书页 `1828171512` 仍是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页未换窗。安静窗 `1828173042` 仍是 `about:blank`。OS 前台仍是 Ghostty。没有对飞书页发送动作，也没有打开 `example.com`。真机隐式开工路径记 `not_run`。
+- daemon `10393` 未重启。二进制是 `04:07`，`login_state.rs` 是 `04:55`。服务端 `release_reading_page_target` 未加载。扩展侧隐式开工已加载；当前 daemon 仍可能把正在看的页写进 `tab_id`，扩展会改打，不会切页。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-implicit-ensure.json`。
+
+
+## 2026-10-15：BR-001 没有 Agent 页时先开折叠组，不切正在看的页
+
+运行中的 daemon 若仍把正在看的页绑进 `click`、`type`、`hover`、`scroll`、`keypress`、`snapshot`，且没有可注入的 Agent http 页，扩展不再停在拒绝。它在已有安静窗的折叠 VCU 组打开 `https://example.com/`；没有安静窗时才在用户窗的折叠 VCU 组打开，并且不激活正在看的页。动作改打新页，返回 `released_reading_page` 和 `tab_id_source=agent_group`。正在看的页不被 `tabs.update` 或 `tabs.move`。打开若会替换该页，仍拒绝，并且不发送动作。不带 `tab_id` 且没有 Agent 页的隐式动作仍返回 `no agent tab`。`close_tab`、`click_point` 和分组仍拒绝。`dry_run` 仍可检查正在看的页，但不新开页。
+
+- `extension/tests/background.test.cjs` 56 项通过，0 失败。单独正在看的页上的 click 和 `dy: 0` scroll 会打开折叠 VCU 组里的 `https://example.com/`，用户页 URL 和 active 不变，动作不发给该页。安静窗存在时新页进窗口 `9`，不进用户窗，也不 `windows.create`。`dry_run` 仍打正在看的页，且不新开页。
+- 扩展 SHA256 `8eda9087c4cb7494b0317dfbd62845560bf32fec57b8cf324786943aa0ae9634`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 重载返回 `reloaded=1`。再 ping 是 `quiet_work=ensure-group`，同时保留 `quiet_nav=agent-group`、`quiet_release=agent-group` 和 `quiet_reading=never-move`。
+- 只读复核：飞书页 `1828171512` 重载前后都是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。安静窗 `1828173042` 仍是 `about:blank`。OS 前台仍是 Ghostty。没有对飞书页发送 click 或 navigate，也没有打开 `example.com`。因此真机确保工作组的路径是 `not_run`，只由单测证明。
+- daemon `10393` 父进程 1，仍听 `127.0.0.1:17890`。二进制是 `04:07`，`login_state.rs` 是 `04:55`。服务端 `agent_surface` 和 `release_reading_page_target` 未加载，不能写成服务端已改打。扩展侧确保工作组已加载。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-ensure-group.json`。
+
+
+## 2026-10-15：BR-001 导航正在看的页改为打开安静窗折叠组
+
+`navigate` 如果目标是正在看的页，不再 `tabs.update` 该页。请求的 http(s) URL 改在已有安静窗的折叠 VCU 组打开；没有安静窗时才在用户窗的折叠 VCU 组打开，并恢复原活动页。`close_tab` 和 `click_point` 仍不改打别的页。没有 Agent http 页时，click/type/hover/scroll/keypress/snapshot 仍拒绝，不发明一个空白页去点击。
+
+- `extension/tests/background.test.cjs` 55 项通过，0 失败。安静窗路径把新页开在窗口 `9` 的折叠 VCU 组，用户页 URL 和 active 不变，没有 `tabs.update` 用户页。没有安静窗时新页进用户窗折叠 VCU 组，用户页仍 active。已有 VCU 组页的 navigate 仍只更新该页。
+- 扩展 SHA256 `e91caf3e079ed3d002970d70b04e42583923b1d0c73515ba8580e6a8c36ecf8c`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 重载返回 `reloaded=1`。再 ping 是 `quiet_nav=agent-group`，同时保留 `quiet_release=agent-group` 和 `quiet_reading=never-move`。
+- 只读复核：飞书页 `1828171512` 重载前后都是用户窗 `1828171349` 的活动且 focused 页，地址没变。哔哩哔哩页未换窗。安静窗 `1828173042` 仍是 `about:blank`。OS 前台仍是 Ghostty。没有对飞书页发送 navigate。
+- daemon `10393` 未重启。服务端 `release_reading_page_target` 仍未加载，不能写成服务端已改打。扩展侧导航改道已加载。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-nav-agent-group.json`。
+
+
+## 2026-10-15：BR-001 正在看的页改打折叠组，不搬走
+
+运行中的 daemon 若仍把正在看的页绑进 `click`、`type`、`hover`、`scroll`、`keypress`、`snapshot`，扩展改打已有的折叠 VCU/session 组，并返回 `released_reading_page` 和 `tab_id_source=agent_group`。没有 Agent 页时仍拒绝。`navigate`、`close_tab`、`click_point` 不改打别的页。`dry_run` 和活动页截图仍可检查该页，但不移动它。
+
+- `extension/tests/background.test.cjs` 52 项通过，0 失败。显式点击正在看的页会改打折叠组夹具，用户页保持 active；没有 Agent 页时拒绝。`keypress` 同样改打。分组仍拒绝正在看的页。`tabs.move` 没有被调用。
+- 扩展 SHA256 `8b6669a7aa7f671239f3e8f4afddf06af441907de51ab9ff698d4771efce38a0`，工作树与 `~/.vcu/lens-extension/background.js` 一致。上一轮 `allow_page_reload=false` 重载后 ping 是 `quiet_release=agent-group`，同时保留 `quiet_reading=never-move`。本轮不重载再 ping，HTTP 200，标记相同，没有 `reloaded`。
+- 只读复核：飞书页 `1828171512` 仍是用户窗 `1828171349` 的活动且 focused 页。哔哩哔哩页 `1828171351`、`1828171545` 未换窗。安静窗 `1828173042` 仍是 `agent_owned=true`，`page_being_read=false`。OS 前台仍是 Ghostty。没有对飞书页发送会执行的动作。
+- daemon `10393` 父进程 1，仍听 `127.0.0.1:17890`。二进制是 `04:07`，`login_state.rs` 是 `04:55`。服务端 `agent_surface` 和 `release_reading_page_target` 未加载，不能写成真机已生效。扩展侧改打已加载。
+- 当前没有折叠 VCU/session 的 http 页；安静窗 about:blank 不可注入。因此若请求仍带飞书页，扩展会拒绝，不会改打，也不会搬走。本轮没有发送该动作。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-release-reading.json` 和 `.local/browser-cu/br-001-release-reading-recheck.json`。
+
+
+## 2026-10-15：BR-001 命名 session 组留下，用户组 1/3 不搬
+
+后台截图和滚动仍只搬 Agent 工作面。已记录的 session 组必须标题匹配，组号复用到用户组 `1`/`3` 或其他标题时拒绝 `tabs.move`。标题匹配的折叠 session 组成为隐式动作目标，正在看的非 Agent 页保持不动。
+
+- `extension/tests/background.test.cjs` 49 项通过。新增反向用例：存储里的组号 `1` 和标题不符的组号 `8` 都不 `tabs.move`，也不能成为隐式目标。正向用例：标题为 `Review` 的 session 组接受隐式点击，用户页仍 active。
+- `cargo test -p vcu-server --lib release_reading_page` 1 通过。服务端把 `agent_surface` 也视为工作面。daemon `10393` 没有重启，这段服务端改动未加载，不能写成真机已生效。
+- 扩展 SHA256 `5e9db08e5ed0bf9d5c6cc259220cd8d584ffc65354058bd3d8802ba58f5992ae`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 的重载返回 `reloaded=1`。再 ping 是 `quiet_session=match-title`，`quiet_move=agent-surface`。飞书页 `1828171512` 重载前后都 focused。哔哩哔哩页未换窗。OS 前台仍是 Ghostty。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-session-title.json`。
+
+# 会话交接
+
+## 2026-10-15：BR-001 只读复核，用户页仍未被搬走
+
+没有新改代码。运行中的 Edge 扩展 ping 仍是 `quiet_move=agent-surface`，版本 `0.2.8`。这次 ping 没有 `reload`。工作树和 `~/.vcu/lens-extension/background.js` 的 SHA256 都是 `228fdfd3f80933704bb4a1f7ce2e784a9a9e98c81ebe311a68579441298902ff`。`extension/tests/background.test.cjs` 47 项通过，0 失败。
+
+- daemon `10393` 父进程 1，仍听 `127.0.0.1:17890`。飞书页 `1828171512` 仍是用户窗 `1828171349` 的活动且 focused 页，`page_being_read=true`。哔哩哔哩页 `1828171351`、`1828171545` 仍在同一窗口，不是 focused。安静窗 `1828173042` 是 `agent_owned=true`，`page_being_read=false`。OS 前台仍是 Ghostty。
+- 后台截图和滚动重试仍拒绝把用户组或未分组用户页 `tabs.move` 进安静窗。Agent 只在 VCU / `VCU-` / `VCU ` 组、已记录的 session 组，或已经在 Agent/安静窗里的标签上短暂搬移。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树 27 个脏路径，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-quiet-move-recheck.json`。
+
+# 会话交接
+
+## 2026-10-15：BR-001 用户页不再被搬进安静窗
+
+后台截图和滚动重试只允许短暂搬移 VCU / `VCU-` / `VCU ` 组、已记录的 session 组，或已经在 Agent/安静窗里的标签。用户组 `1`/`3` 和未分组的后台页不再 `tabs.move`。Agent 组夹具仍可进安静窗并归还。飞书页 `1828171512` 重载和复测前后都 focused。OS 前台仍是 Ghostty。daemon `10393` 仍在。没有覆盖 `~/.local/bin`，没有冷启动，没有点 Allow，没有用 CDP。
+
+- `extension/tests/background.test.cjs` 47 项通过。新增反向用例：用户后台页截图和滚动不得 `tabs.move`，活动页保持不动。已记录的 session 组夹具仍能进安静窗并折叠归还。
+- 扩展 SHA256 `228fdfd3f80933704bb4a1f7ce2e784a9a9e98c81ebe311a68579441298902ff`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 的 `reload_self` 返回 `reloaded=1`。再 ping 是 `quiet_move=agent-surface`。重载前后标签 id 集合没变。
+- `.local/browser-cu/br-001-quiet-move.json`：折叠 session 组夹具 `1828173120` 显式截图 `capture_window_id=1828173041`，不是用户窗 `1828171349`。`background_capture=true`，`user_group_expansions=0`。画面是品红条和夹具标题，文件 `viewport-01M4Y2DB5FTWETZA3RCJPADG2E.png`。夹具已关。飞书页仍 focused，前台仍是 Ghostty。原用户标签没有换窗，也没有被激活。
+- 夹具是组里唯一标签，搬去安静窗时原组被浏览器解散，归还后重建为同名折叠组 `598810935`。这不是搬用户页。没有对飞书页或哔哩哔哩页做会搬移的实测。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+# 会话交接
+
+## 2026-10-15：BR-001 折叠组截图和视口点击不切飞书页
+
+显式截折叠 session 组里的夹具，画面来自安静窗，不是用户窗。随后用这张截图的视口坐标点击，打中夹具按钮，不切飞书页 `1828171512`。OS 前台仍是 Ghostty。daemon `10393` 仍在。没有覆盖 `~/.local/bin`，没有冷启动，没有点 Allow，没有用 CDP。
+
+- `.local/browser-cu/br-001-collapsed-shot.json`：夹具 `1828173108` 在用户窗 `1828171349` 的折叠组，`active=false`。截图 `capture_window_id=1828173041`，不是用户窗。`background_capture=true`，`user_group_expansions=0`。文件 `viewport-01M4Y1QEHSP79ZW0V0N3NX42XK.png` 是品红条和夹具标题，不是飞书页。截完夹具回到原窗并保持折叠，随后已关。
+- `.local/browser-cu/br-001-viewport-click.json`：同一路径截图后，`space=viewport` 点击 `pixel_x=80`、`pixel_y=80`。回执 `pressed=true`，`source=extension_dom`，`os_cursor_used=false`，目标是夹具 `1828173114`。extract 读回 `hits-1`。组保持折叠，夹具已关。飞书页仍 focused，前台仍是 Ghostty。
+- 这不是隐式截图。不带 `tab_id` 的截图仍绑 last observe，不能写成已经改道。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+# 会话交接
+
+## 2026-10-15：BR-001 隐式 type/hover/scroll 留在折叠组，滚动读回已核实
+
+不带 `tab_id` 的 type、hover、scroll 打到刚打开的折叠 session 组，不切飞书页 `1828171512`。OS 前台采样只有 Ghostty。daemon `10393` 仍是父进程 1，听 `127.0.0.1:17890`。没有覆盖 `~/.local/bin`，没有冷启动，没有点 Allow，没有用 CDP。
+
+- `.local/browser-cu/br-001-dom-actions.json` 的 type/hover 读回是 `vcu-dom` 和 `hovers-1`，`tab_id_source=agent_group`，`stolen=false`。它的 scroll 顶层 `scroll_y` 和 `background_scroll` 都是空，紧接着的 extract 仍是 `y-0`。那份文件不能证明滚动。
+- `.local/browser-cu/br-001-implicit-dom.json`：打开进入折叠组，`active=false`。不带 `tab_id` 的 type/hover/scroll 都打到夹具 `1828173094`，`tab_id_source=implicit`，`source=extension_dom`。scroll 回执 `scroll_y=480`、`scrolled=true`、`background_scroll=false`。紧接着的 extract 仍是 `y-0`，所以这一下也不能单独证明页面滚动留下。夹具已关，飞书页仍 focused。
+- `.local/browser-cu/br-001-scroll-persist.json`：同一路径先 `dy=480`，再 `dy=0` 独立读回仍是 `scroll_y=480`。0.5 秒后 extract 读回 `y-480/top-480`。组保持折叠，夹具已关。飞书页 `1828171512` 仍 focused，前台仍是 Ghostty。`background_scroll=false`，没有把夹具挪进安静窗。
+- 已有 Agent http 页时来源是 `implicit`，不是 `agent_group`。没有 Agent http 页时，服务端仍放开正在看的页并改走 `agent_group`。两种来源都没有打到飞书页。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+# 会话交接
+
+## 2026-10-15：BR-001 新 daemon 已把隐式点击留在折叠 VCU 组
+
+旧 daemon `97464` 已不在。当前 daemon `10393` 父进程 1，听 `127.0.0.1:17890`，二进制是 `04:07` 编的 `target/debug/vcu-daemon`，晚于 `api.rs` / `login_state.rs`。没有覆盖 `~/.local/bin`，没有冷启动，没有点 Allow，没有用 CDP。health `ok=true`，扩展 `polling=true`。
+
+- `pixels=false` 的 observe 打到飞书页 `1828171512`，`page_being_read=true`，`act_target=agent_group`，没有切页。
+- 没有 Agent http 页时，不带 `tab_id` 的 click 返回 `no agent tab in the VCU group; refusing to use the page being read`。飞书页仍 focused。
+- 后台打开本机夹具进入用户窗 `1828171349` 的折叠 VCU 组，`active=false`。不带 `tab_id` 的 click 回执是 `tab_id=1828173086`，`tab_id_source=agent_group`，`source=extension_dom`，`input_path=dom_click`，`os_cursor_used=false`。extract 读回按钮文本 `hits-1`。夹具已关闭，标签 id 集合恢复为打开前的四项，VCU 组消失。
+- 采样期间 OS 前台只有 Ghostty。飞书页重测后仍是 `1828171512`，focused，`page_being_read=true`。窗口 id 前后都是 Ghostty `2039`、飞书 `7243`、安静窗 `20648`。探针没解析出坐标；测后只读坐标是飞书 `0,30` 的 `1920x926`，安静窗 `1420,915` 的 `500x375`。
+- `extension/tests/background.test.cjs` 45 项通过。`release_reading_page_only_for_live_last_observe` 1 通过。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。
+
+证据是 `.local/browser-cu/br-001-daemon-agent-group.json`。中间有一次探针因解析错误和 `finally` 吞异常写成空检查，已作废；以上只采用最后一次五项都 pass 的结果。
+
+## 2026-10-15：BR-001 安静窗不再被标成正在看的页
+
+列表以前只认 `agentWindowId`。重载后停放窗记在 `quietCaptureWindowId`，所以安静窗里的活动 `about:blank` 被标成 `page_being_read`。现在列表会读取停放窗 id，安静窗和 Agent 窗都算 `agent_owned`，不再当成正在看的页。正在看的 focused 用户页仍拒绝动作。
+
+- `extension/tests/background.test.cjs` 45 项通过。新增「parked quiet window is not the page being read」。ping 标记是 `quiet_own=quiet-window`，`quiet_act=agent-group`。
+- 扩展 SHA256 `62e7eeec97f572afe4a8777c1e99ad91f4ece68da5eb1cf4a600904990bed2ae`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`allow_page_reload=false` 的 `reload_self` 返回 `reloaded=1`，没有 `reload.html`。再 ping 是 `quiet_own=quiet-window`。
+- 飞书页 `1828171512` 重载前后都是用户窗 `1828171349` 的活动且 focused 页，`page_being_read=true`，`agent_owned=false`。安静窗标签 `1828173042` 现在是 `agent_owned=true`，`page_being_read=false`，`focused=false`。标签 id 集合没变。OS 前台仍是 Ghostty。飞书 CG `7243` 仍在 `0,30`，安静窗 CG `20648` 仍在 `1420,915` 的 `500x375`。没有打 `/stage`，没有点 Allow，没有用 CDP，没有冷启动。
+- daemon `97464` 没有重启。服务端把正在看的页放开、改走 `tab_id_source=agent_group` 仍未加载，不能写成真机已生效。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+证据是 `.local/browser-cu/br-001-quiet-own-reload.json`。停手前已 `awr source reindex`，project revision `312`。AWR：Continue 1（`BR-001`），Claimable 1（`CORE-001`），Waiting 23，Blocked 1（`VISION-NEXT` draft）。没有领取 `CORE-001`。
+
+# 会话交接
+
+## 2026-10-15：BR-001 扩展重载后 quiet_act=agent-group，飞书页未切
+
+工作树 `extension/background.js` 与 `~/.vcu/lens-extension/background.js` 的 SHA256 都是 `23e889b70e13b0d62c3de7ce7bc1460de08d7fb686a65968ea3d403bc2e3dba8`。先 GET `/v1/browser/tabs`，再 POST `/v1/browser/ping`，body 是 `{"reload":true,"allow_page_reload":false}`。HTTP 200，`reloaded=1`，没有打开 `reload.html`。1.2 秒后再 ping，`quiet_act=agent-group`，`quiet_stage=parked-size`，`quiet_group=keep-collapsed`，`quiet_place=stage-only`，版本 `0.2.8`。重载前的 ping 没有 `quiet_act`。
+
+- 飞书页 `1828171512` 重载前后都是用户窗 `1828171349` 的活动且 focused 页，标题仍是飞书文档。标签 id 集合没变。OS 前台仍是 Ghostty。安静窗 CG `20648` 仍在 `1420,915` 的 `500x375`，飞书 CG `7243` 仍在 `0,30`。没有打 `/stage`，没有重跑放大截图，没有点 Allow，没有用 CDP，没有冷启动。
+- 重载后列表把飞书页标成 `page_being_read=true`。安静窗里的 `about:blank` `1828173042` 也是 `active=true`、`page_being_read=true`，但它 `focused=false`，不是用户正在看的页。这是标记过宽，不是切页。
+- daemon `97464` 没有重启。服务端非 dry_run 隐式动作放开正在看的页、改走 `tab_id_source=agent_group` 的改动仍未加载，不能写成真机已生效。扩展侧的拒绝和 `quiet_act` 已经在运行中的 Edge 扩展里。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+证据是 `.local/browser-cu/br-001-agent-group-reload.json`。停手前已 `awr source reindex`，project revision `310`。AWR：Continue 1（`BR-001`），Claimable 1（`CORE-001`），Waiting 23，Blocked 1（`VISION-NEXT` draft）。没有领取 `CORE-001`。
+
+# 会话交接
+
+## 2026-10-15：BR-001 服务端不再把正在看的页绑进真实隐式动作
+
+扩展已经会拒绝打到正在看的非 VCU 页。服务端仍把新鲜 `last_observe` 写成隐式 click/type/hover/scroll 的 `tab_id`，于是真实动作会被扩展拒绝，而不是进入折叠 VCU 组。这一轮只改绑定。
+
+- `release_reading_page_target`：非 `dry_run`、来源是 `last_observe`、目标是正在看的非 VCU 页时，返回 `(None, "agent_group")`，请求不带该 tab。`dry_run`、显式 tab、VCU 组、后台页和 `agent_owned` 保持原绑定。
+- 只接到 click、type、hover、scroll。extract、screenshot、wait、显式 `tab_id`、viewport/capture 点击仍走原来的 `bound_dom_target`。
+- `cargo test -p vcu-server --lib login_state::tests::release_reading_page_only_for_live_last_observe` 1 通过。`cargo test -p vcu-server --test app_http snapshot_merges_extension_tabs_for_empty_ax_edge` 1 通过。mock tab `42` 是活动页；dry-run 仍是 `last_observe`，非 dry-run 是 `agent_group` 且请求没有该 tab。wait 仍是 `last_observe`。
+- daemon `97464` 没有重启，也没有重载。这段服务端改动没有加载进正在运行的进程，不能写成真机已生效。没有再操作飞书页 `1828171512`，没有打 `/stage`，没有重跑放大截图。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 动作留在折叠 VCU 组，安静窗不再放大
+
+隐式 click、type、hover、scroll 不再把正在看的页当目标，只选 `VCU` / `VCU-` / `VCU ` 组或 `agent_owned` 标签。没有这种标签就返回 `no_agent_tab`。显式 click、click_point、type、hover、scroll、navigate、close_tab 打到正在看的非 VCU 页会被拒绝，不切换、不滚动、不关闭。`dry_run` 放行，活动页截图仍是只读。显式 `select_tab` 仍可切换。`quietStageBounds` 现在等于 `quietParkBounds`，不再从角落放大盖住当前页。
+
+- `extension/tests/background.test.cjs` 43 项通过。拒绝正在看的页、隐式点击进 VCU 组、`dry_run` 保留 0 滚动、活动页截图只读、坐标点击改到 VCU 组、隐式 hover 打到折叠组。
+- 扩展 SHA256 `e2bc62c9937909221ebecb8de543fc801c20a0ba211e350a3d4adf22d3fa82a7`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`，`reloaded=1`。ping 是 `quiet_stage=parked-size`，`quiet_group=keep-collapsed`，`quiet_place=stage-only`，版本 `0.2.8`。
+- 重载前后飞书页 `1828171512` 都是用户窗 `1828171349` 的活动且 focused 页，标题仍是飞书文档。CG `7243` 仍在 `0,30` 的 `1920x926`。安静窗 `1828173041` 的 CG `20648` 仍在 `1420,915` 的 `500x375`。OS 前台仍是 Ghostty。bounds 没有漂移，所以没有再打 `/stage`，也没有重跑会放大安静窗的后台截图。
+- 打开 `https://example.com/` 进入同一窗口折叠 VCU 组 `1860526523`，标签 `1828173078`，`active=false`，`collapsed=true`。显式点击飞书页被拒绝，错误是 `click refused without moving the page being read`。不带 tab 的点击打到 example.com，不是飞书页。随后关闭 `1828173078`，组消失。飞书页、Ghostty 和安静窗都没变。
+- daemon `97464` 未停，仍听 `127.0.0.1:17890`。watchdog `5888` 拉起 `7432`，仍听 `127.0.0.1:17991`。没有冷启动，没有点 Allow，没有用 CDP。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+
+## 2026-10-15：BR-001 安静窗从停放角落放大，不再复制用户窗原点
+
+`quietStageBounds` 不再复制用户窗原点。视口校正缺坐标时也不再退回 `0,30`，而是从 `quietParkBounds` 往外长。请求或回读的安静窗覆盖用户页超过 25% 时，`placeQuietWindow` 返回 false，不回退 `chrome.windows.update`。停放二分探测仍允许角落下方的中间 top，但不允许把安静窗挪到用户页原点。
+
+- `extension/tests/background.test.cjs` 42 项通过。放大断言改为：所有 `/stage` 的 `left` 是 `1420` 且 `top >= 880`，至少一次放大是 `1420,880` 且 `width > 500`，没有 `left=0` 或 `top=30`。
+- 扩展 SHA256 `dba4f34750f06c5f887dc4cbccfd0e7df723e656f0a96e13f0dd6642e1e42f33`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`，`reloaded=1`。ping 是 `quiet_stage=parked-origin`，`quiet_group=keep-collapsed`，`quiet_place=stage-only`，版本 `0.2.8`。
+- 重载前后飞书页 `1828171512` 都是用户窗 `1828171349` 的活动页。安静窗 `1828173041` 仍是 index 2，bounds `1420,915,1920,1290`。OS 前台仍是 Ghostty。同坐标 `/stage` 返回 `ok`，没有抬窗，也没有改飞书页。本轮没有重跑会放大安静窗的后台截图，所以放大瞬间是否仍会闪一下，没有新的真机证据。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 安静窗放大先回排，新建窗口不再盖住当前页
+
+`/stage` 现在先把用户窗 `set index to 1`，再改安静窗 bounds，随后立刻再回排，并在 0.05 秒后再回排一次。不设置安静窗 index，避免把空白窗抬到前面。扩展侧新建窗口不再用默认的 `1100x800`：缺窗时只在角落建 `500x375` 且 `focused:false`，创建后立即按窗口 id 回排。加入已折叠的 VCU 组后会再折叠，避免 Chromium 把用户标签条展开。已展开的用户组保持原样。
+
+- `extension/tests/background.test.cjs` 42 项通过。新增缺窗停放和折叠组回归。扩展 SHA256 `d841a5555a071bc682f203a1d69b37deea7da876fb3ed9179574805a34fe60d0`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`，`reloaded=1`。ping 是 `quiet_stage=restack-first`，`quiet_group=keep-collapsed`，`quiet_place=stage-only`，版本 `0.2.8`。
+- 回排助手已换成含 `delay 0.05` 的新二进制。watchdog `5888` 拉起 `7432`，仍听 `127.0.0.1:17991`。daemon `97464` 未停，仍听 `127.0.0.1:17890`。
+- 重载前后飞书页 `1828171512` 都是用户窗 `1828171349` 的活动页。安静窗 `1828173041` 仍是 index 2，bounds `1420,915,1920,1290`。OS 前台仍是 Ghostty。同坐标 `/stage` 返回 `ok`，没有抬窗，也没有改飞书页。本轮没有重跑会放大安静窗的后台截图，所以放大瞬间是否仍会闪一下，没有新的真机证据。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 安静窗停放不再回退 chrome.windows.update
+
+`placeQuietWindow` 和 `parkQuietWindow` 不再在 `/stage` 失败时调用 `chrome.windows.update`。即使 `focused:false`，这个调用也会把安静窗抬到正在看的页前面。停放和放大只走 `/stage`；助手失败就拒绝后台截图，不抬窗。显式 `select_tab` 仍可聚焦。
+
+- `extension/tests/background.test.cjs` 40 项通过。新增 `background capture refuses when stage fails instead of raising the quiet window`。探测失败用例改为断言没有任何 `windows.update`，安静窗坐标保持原位。
+- 扩展 SHA256 `990617b88b1c76686996b5d9853ee827f5bc4fa5966fbc2346c9e52f0b28effc`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`，`reloaded=1`。ping 是 `quiet_place=stage-only`，`quiet_probe=stage-only`，`quiet_restack=window-id`，版本 `0.2.8`。
+- 重载前后飞书页 `1828171512` 都是用户窗 `1828171349` 的活动页。安静窗 CG `20648` 仍在 `1420,915` 的 `500x375`，窗口列表在飞书 CG `7243` 后面。OS 前台仍是 Ghostty。没有冷启动，没有点 Allow，没有停 daemon `97464`，没有为了对齐旧坐标再挪它。本轮没有重跑会放大安静窗的后台截图。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 安静窗探测失败不再用 Chrome API 抬窗
+
+`sunkQuietBounds` 的二分探测只走 `/stage`。助手失败或抛错就停止，不再 `chrome.windows.update` 试更低的位置。那会把安静窗抬到正在看的飞书页前面。失败后的停放请求仍是原来的角落 bounds；单测里助手缺失时，最终 `windows.update` 只有 `1420,880` 的 `500x375`，`focused:false`，没有探测 top。助手可用时，停放和放大仍先走 `/stage`，成功路径不再 `windows.update`。已经停在角落的安静窗仍不重探。
+
+- `extension/tests/background.test.cjs` 39 项通过。新增 `quiet park probe stops when stage fails and does not raise trial bounds`。`background capture stages the quiet window by id` 断言成功的 `/stage` 路径没有 `windows.update`。
+- 扩展 SHA256 `b31d3350c0b9c597e65b7fe6f2386ec495371157ce7081e0ef770dc27fc7b45b`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`，`reloaded=1`。ping 是 `quiet_probe=stage-only`，`quiet_restack=window-id`，版本 `0.2.8`。
+- 重载前后飞书页 `1828171512` 都是用户窗 `1828171349` 的活动页。安静窗 CG `20648` 仍在 `1420,915` 的 `500x375`，窗口列表在飞书 CG `7243` 后面。OS 前台仍是 Ghostty。没有冷启动，没有点 Allow，没有停 daemon `97464`，没有为了对齐旧坐标再挪它。本轮没有重跑会放大安静窗的后台截图。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 失败恢复不再抢前台，已停放的安静窗不再重探
+
+后台截图失败时，`restoreUserFocus` 不再调用 `chrome.windows.update({focused:true})`。那会激活 Edge，抢走 OS 前台。现在只恢复被换掉的活动标签，并用窗口 id 回排。已经停在角落的安静窗不再做二分探测，位置未变时也不再 `windows.update`。
+
+- `extension/tests/background.test.cjs` 38 项通过。新增 `already sunk quiet window is not probed over the user page`。抢焦点用例改为断言没有 `focused:true`。
+- 扩展 SHA256 `6e38016af7ce1fab85bc541bd8fdc4a5b56ffd56206508c2de17ae50e90d2fd6`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`。ping 仍是 `quiet_restack=window-id`，版本 `0.2.8`。
+- 重载后飞书页 `1828171512` 仍是用户窗活动页。安静窗 CG `20648` 仍在 `1420,915` 的 `500x375`，窗口列表在飞书 CG `7243` 后面。OS 前台仍是 Ghostty。没有冷启动，没有点 Allow，没有停 daemon `97464`。
+- Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+
+## 2026-10-15：BR-001 按窗口 id 停放安静窗，仍不能完成
+
+回排按 bounds 匹配会在安静窗放大到飞书位置后同时命中两个窗口，最后把安静窗抬到前面。`set index of quiet to 2` 也会把空白窗抬到前面，已删除。`scripts/quiet_window_restack.c` 增加按窗口 id 的 `/restack` 和 `/stage`。`/stage` 只改安静窗 bounds，然后只把用户窗 `set index to 1`，不写用户窗 bounds。扩展停放、放大和视口校正走 `placeQuietWindow`，失败才退回 `chrome.windows.update`。ping 字段是 `quiet_restack=window-id`。
+
+- 02:29 最小后台截图 HTTP 200，`background_capture=true`，`capture_window_id=1828173041`，不是用户窗口 `1828171349`。`user_group_expansions=0`。PNG `viewport-01M4XTV980NY2K2KYEXH1RNFXT.png` 27621 字节，3824x1616，夹具标签 `1828173072`。126 次采样 `covered_samples` 为空，前台只有 Ghostty。飞书页未变，夹具已关闭。本轮没有重跑这次会放大安静窗的截图。证据 `.local/browser-cu/br-001-window-id.json`。
+- 只读复核：daemon `97464` 父进程 1，听 `127.0.0.1:17890`。watchdog `5888` 父进程 1，监听 `6245` 听 `127.0.0.1:17991`。扩展 SHA256 `63a9cbc353b815d43d891af21432598d98b093f8bb1a975093bb0c9cdf4108c7`，工作树与 `~/.vcu/lens-extension/background.js` 一致。ping `quiet_restack=window-id`，版本 `0.2.8`。飞书页 `1828171512` 仍是用户窗活动页。安静窗 CG `20648` 停在 `1420,915` 的 `500x375`，窗口列表在飞书 CG `7243` 后面。OS 前台是 Ghostty。没有为了对齐旧坐标再挪它。
+- `extension/tests/background.test.cjs` 37 项通过，含 `background capture stages the quiet window by id and does not focus the user window`。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+
+## 2026-10-15：BR-001 回排改由会话助手拉起，仍不能完成
+
+launchd 按次启动的 `osascript` 会卡住 Edge Apple Event，且不能为了授权弹窗让用户点允许。已卸掉 `com.vcu.quiet-window-restack`。回排改由当前 GUI 会话里的监听进程处理；进程退出后由同会话 watchdog 拉起，不依赖会退出后停住的 Python 监听。
+
+- 扩展 SHA256 `f22a0cf85e18b7047ef8035f191cd6be97be766240ca7f63157807de1328d53b`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`，ping 回报 `quiet_restack=session-helper`。没有 `open -a`，没有点 Allow，没有停 daemon `97464`。
+- watchdog pid `5888`，父进程 1。监听进程被杀掉后由它拉起为 pid `5905`，仍听 `127.0.0.1:17991`。两次回排都是 `ok`，不抢 Ghostty。安静窗 CG `20648` 仍是 `1420,890` 的 `500x375`。飞书 CG `7243` 仍是 `0,30 1920x926`，z 序在安静窗前面。
+- 最小后台截图 `background_capture=true`，`capture_window_id=1828173041`，不是用户窗口 `1828171349`。`user_group_expansions=0`。PNG `viewport-01M4XT1CD704BKEHPAD1QHEVKC.png` 34142 字节，3824x1616，标签是夹具 `1828173066`，不是飞书页。飞书页 `1828171512` 未变。采样前台只有 Ghostty。没有新增 CG 窗口，没有新增全尺寸在屏 `about:blank`。夹具已关闭。证据 `.local/browser-cu/br-001-session-restack.json`。
+- `extension/tests/background.test.cjs` 36 项通过。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+
+## 2026-10-15：BR-001 空闲安静窗改到飞书后面，仍不能完成
+
+空闲安静窗不能再盖住正在看的飞书页。Edge 把正常窗口最小夹到 `500x375`，并且拒绝少于约一半在屏内，所以不能整窗沉进 Dock。`chrome.windows.update` 写回用户窗原 bounds 不改变叠放。进程外 `CGSOrderWindow` 返回 1000。Edge AppleScript `set index to 1` 能把用户窗放到安静窗前面，且不激活 Edge、不抢 Ghostty。
+
+- 扩展 SHA256 `4a46aea68fa1e230018c5b0513a3853541821b6517798484a8a8d7f7229073fa`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`。没有 `open -a`，没有点 Allow，没有停 daemon `97464`。
+- 安静窗 Chrome id `1828173041`，CG `20648`，停在 `1420,890` 的 `500x375`。飞书窗 CG `7243` 仍是 `0,30 1920x926`，z 序在安静窗前面。旧幽灵窗 `20630`、`20633`、`20636`、`20643` 没有新关。回排助手是 `scripts/quiet_window_restack.py`，pid `5176`，父进程 1，只听 `127.0.0.1:17991`。助手不在时扩展仍停放，但安静窗会重新压到飞书上。
+- 最小后台截图 `background_capture=true`，`capture_window_id=1828173041`，不是用户窗口 `1828171349`。`user_group_expansions=0`。飞书页 `1828171512` 未变，采样前台只有 Ghostty。没有新增 CG 窗口，没有新增全尺寸在屏 `about:blank`。夹具已关闭。证据 `.local/browser-cu/br-001-restack.json`。
+- `extension/tests/background.test.cjs` 36 项通过。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+
+## 2026-10-15：BR-001 安静窗停在角落，官方 Edge 基线仍 pass，不能完成
+
+没有 `tabs.captureTab` 时，后台截图仍把目标页短暂移到未聚焦安静窗口，截完放回折叠的 VCU 组。成功路径不再删除或最小化该窗口。删除会在用户窗口同一位置留下窗口服务器幽灵窗；最小化后 CoreGraphics 仍看到全尺寸在屏 `about:blank`。空闲时把同一窗口缩到用户窗口右下角并复用，截图时再放大，不聚焦，不切用户页。
+
+- 扩展 SHA256 `d31c87eda971a9d3f3366ecccfd0c893f4fd20a93681e5415e59489b13422fa6`，工作树与 `~/.vcu/lens-extension/background.js` 一致。`reload_self` 成功，`allow_page_reload=false`。没有 `open -a`，没有点 Allow，没有停 daemon `97464`。
+- Edge 把请求的 `360x220` 夹到 `500x375`。复用窗口 Chrome id `1828173041`，CG `20648`，位置 `1560,736`，标题 `about:blank`。这不是新增全尺寸在屏空白窗。旧幽灵窗 `20630`、`20633`、`20636`、`20643` 仍是 `1920x926`，Chrome 看不到，没有关闭。飞书真实窗 CG `7243` 没有隐藏或关闭。
+- 最小后台截图和官方 POC 都没有切飞书页 `1828171512`，没有展开用户组，前台保持 Ghostty。官方 `scripts/poc_browser_br_001_macos.py` 的 Edge 基线 pass：`capture_window_id=1828173041`，用户窗口 `1828171349`，CoreGraphics 采样 31 次，`fixture_title_seen=true`，`user_group_expansions=0`，`new_window_ids=[]`。Chrome 未运行，记 `not_run`。断连重连未停 daemon，记 `not_run`。`completion_allowed=false`。
+- 证据是 `.local/browser-cu/br-001.json` 和 `.local/browser-cu/br-001-corner-park.json`。`extension/tests/background.test.cjs` 36 项通过。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 官方门禁加入后台截图，Edge 仍 pass，Chrome 仍 not_run
+
+`scripts/poc_browser_br_001_macos.py` 现在会在 Edge 基线里截后台夹具页，并检查受保护页、用户窗口标签组和 OS 前台。结果仍是 `completion_allowed=false`。
+
+- 截图 `ok=true`，`background_capture=true`，`source=extension_viewport`。`capture_window_id=1828172994`，用户窗口是 `1828171349`。采样只有 1 次，因为前台查询比搬移慢；不能把这一次采样写成全程监视。结果字段和结束后的标签状态证明截图没有留在用户窗口。
+- 受保护页始终是飞书 `1828171512`。前台保持 Ghostty。夹具已关闭，组已消失，只剩用户窗口。没有冷启动，没有点 Allow，没有停 daemon `97464`。
+- Chrome 仍 `not_run`。断连重连仍 `not_run`。工作树脏，HEAD `e6fa5e9`，没有干净 SHA。不能标完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 官方 Edge 基线通过，Chrome 仍 not_run
+
+`scripts/poc_browser_br_001_macos.py` 在当前脏树上返回 `completion_allowed=false`。Edge 基线 `pass`，Chrome `not_run`。这不是完成。
+
+- 没有冷启动。Edge 进程始终是 `95352`。没有 `open -a`，没有点 Allow，没有停 daemon `97464`。
+- Edge：observe `source=extension_viewport`，extract `source=extension_dom`，重载前后版本都是 `0.2.8`。受保护页始终是飞书 `1828171512`，`protected_tab_unchanged=true`。OS 前台前后都是 Ghostty。夹具 `1828172987` 已关闭，组已消失，只剩用户窗口 `1828171349`。
+- 反向：未连接的 Chrome observe 被拒绝，没有串到 Edge。`never_click_allow=true`。agent profile、reload 定向、browser_gates 和扩展测试通过。已在跑的 daemon 没有被停，所以断连重连记 `not_run`，不是通过。
+- 证据 `.local/browser-cu/br-001.json`。工作树仍脏，HEAD `e6fa5e9`。没有干净 SHA，不能标完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 后台截图不展开用户窗口里的 VCU 组，源状态未完成
+
+用户要求浏览器操作不得替换正在使用的页面，只在自己的折叠标签组里工作。`BR-001` 仍是 planned，不能标完成。
+
+- 复核 daemon `97464` 仍在，父进程 1，听 `127.0.0.1:17890`，二进制是工作树 `target/debug/vcu-daemon`。没有覆盖 `~/.local/bin`。工作树 `extension/background.js` 与 `~/.vcu/lens-extension/background.js` SHA256 一致：`d88d7551e178402918b4b40ac4d37a09a20001ebc0aed7fd759769f359c44e21`。没有 `open -a`，没有冷启动，没有点 Allow。
+- 当前 ping HTTP 200，版本 `0.2.8`，`quiet_tab_group=true`，`quiet_background_capture=true`。这台 Edge 没有 `tabs.captureTab`，所以 `background_capture=false`，后台截图走未聚焦安静窗口。
+- 真机证据 `.local/browser-cu/br-001-collapsed-capture.json`：受保护页是飞书 `1828171512`，窗口 `1828171349`。截图 `background_capture=true`，`capture_window_id=1828172973`，不是用户窗口。采样期间 `expanded_user_window_groups=[]`，`stolen_active=[]`，前台是 Ghostty。夹具已关闭，组已消失。
+- 停手复核：活动页仍是飞书 `1828171512`，只剩用户窗口 `1828171349`，组为空。OS 前台是 Ghostty。
+- `extension/tests/background.test.cjs` 36 项通过，包含 `background capture restores a collapsed VCU group without expanding it`。视口在安静窗口读取，放回时不把用户窗口里的 VCU 组展开。
+- Chrome 未运行，记 `not_run`。工作树是脏的，HEAD 仍是 `e6fa5e9`。没有干净 SHA，双浏览器证据没有，不能标完成。
+- 没有自动领取 `CORE-001`：`BR-001` 仍是当前领取项，用户要求先完成它。`CORE-001` 只是可领取，不是本轮下一项。不要领取 `BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-15：BR-001 后台重载和打开不切飞书页，源状态未完成
+
+用户要求浏览器操作不得替换正在使用的页面，只在自己的折叠标签组里工作。`BR-001` 仍是 planned，不能标完成。
+
+- daemon `97464` 仍在，父进程 1，听 `127.0.0.1:17890`，二进制是工作树 `target/debug/vcu-daemon`。没有覆盖 `~/.local/bin`。扩展文件与工作树 `extension/background.js` 一致。没有 `open -a`，没有冷启动，没有点 Allow。
+- 重启后扩展已重新 poll。`POST /v1/browser/ping` `reload=true, allow_page_reload=false` 返回 HTTP 200，`reloaded=1`。这是 `reload_self`，不是可见页重载。重连后 ping 版本仍是 `0.2.8`，`background_reload_tab=true`，`quiet_tab_group=true`。
+- 受保护页从头到尾是飞书文档 `1828171512`，窗口 `1828171349`，URL `https://pcnizpum6g5i.feishu.cn/wiki/FDRjw3hZWiDKHQkULu1cVyLjnrg`。没有切回旧的 Bilibili。OS 前台全程是 Ghostty，没有被抢走。
+- 后台打开本机夹具进入同一窗口的折叠 VCU 组：`collapsed=true`，标签 `active=false`。提取 `source=extension_dom`，读到夹具标记。测试页已关闭，组已消失，用户页仍是飞书。证据 `.local/browser-cu/br-001-quiet-reload.json`。
+- Chrome 未运行，记 `not_run`。工作树是脏的，HEAD 仍是 `e6fa5e9`。没有干净 SHA，双浏览器证据没有，不能标完成。
+- `scripts/poc_browser_br_001_macos.py` 不再调用 `open -a`，也不再走 `install-lens --reload`。未连接时只记未连接。
+- 不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-14：BR-001 动作后截图仍留在折叠组，源状态未完成
+
+用户要求浏览器操作不得替换正在使用的页面，只在自己的折叠标签组里工作。`BR-001` 仍是 planned，不能标完成。
+
+- 2026-10-14 停手前已 `awr source reindex`，project revision `274`，source issues 0。台账证据指向 `docs/HANDOFF.md`、`docs/PLAN-BROWSER.md` 和 `.local/browser-cu/br-001-actions.json`。这些证据没有干净 SHA 绑定，不能当完成证明。AWR：Continue 1（`BR-001`），Claimable 1（`CORE-001`），Waiting 23，Blocked 1（`VISION-NEXT` draft）。没有领取 `CORE-001`。
+
+- 工作树 daemon 是 `94041`，父进程 1，听 `127.0.0.1:17890`。没有覆盖 `~/.local/bin`。只复制 `extension/background.js` 到 `~/.vcu/lens-extension`，`reload_self` 成功，`page_reload=false`，没有 `open -a`，没有点 Allow。
+- Edge 没有 `tabs.captureTab`。后台截图仍把目标页短暂移到未聚焦安静窗口，截完放回。放回后若立刻折叠，内容脚本会失去响应；所以先在未折叠的 VCU 组读视口，确认 URL、尺寸、滚动和布局，再折回并关闭安静窗口。不展开用户正在看的组，不激活用户页，不抢 OS 前台。
+- 后台滚动只认 page-world `window.scrollY`。仅 `scrollTop` 变化不算成功，否则会误报 `scroll_y=480` 而画面仍在页顶。
+- `scripts/poc_browser_br_001_actions.py` 返回 `ok=true`。点击、输入、悬停、提取、滚动和像素观察都留在折叠 VCU 组，`agent_active=false`。受保护页从头到尾是 Bilibili 首页 `1828171351`。OS 前台全程是已经在前台的 Microsoft Edge，没有被抢走。滚动 `scroll_y=480`，观察元数据也是 480，URL 是本机夹具，不是用户页。PNG 顶部是间隔色 `(34, 34, 34)`。测试页和组已清理，Edge 窗口数回到 1。
+- 扩展测试 `extension/tests/background.test.cjs` 34 项通过。Chrome 未运行，记 `not_run`。工作树是脏的，HEAD 仍是 `e6fa5e9`。双浏览器和干净 SHA 都没有，不能标完成。
+- 恢复前台时跳过微信，不激活它。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+
+## 2026-10-14：BR-001 后台截图不切当前页，仍未完成
+
+用户要求浏览器操作不得替换正在使用的页面，要像 Codex Computer Use 一样只在自己的标签组里工作。`BR-001` 仍是 planned，不能标完成。
+
+- 工作树 daemon 已从 `91792` 换成 `93219`，仍听 `127.0.0.1:17890`，父进程是 1。没有覆盖 `~/.local/bin`。只复制了 `extension/background.js` 到 `~/.vcu/lens-extension`，`reload_self` 成功，`page_reload=false`，没有 `open -a`，没有点 Allow。
+- Edge 真机：折叠 VCU 组打开夹具页后，后台截图返回 `background_capture=true`，`capture_window_id` 不是用户窗口。受保护页仍是 Bilibili `1828171545`。OS 前台全程是 Hearthstone，120ms 采样没有被抢走。测试页已关闭，组已消失，Edge 窗口数回到 1。
+- 这台 Edge 只有 `captureVisibleTab`，没有 `tabs.captureTab`。后台标签会短暂移到未聚焦的安静窗口，按原 viewport 截图后放回折叠组并关闭该窗口。安静窗口造成的 revision 跳动可以忽略；活动页截图仍拒绝真实 revision 变化。PNG 是整幅夹具色，显示配置把 CSS `#ff00aa` 记成 `(232, 50, 168)`，不是用户页。
+- 指定 `browser=chrome` 且 Chrome 未连接时，旧 daemon 会把无 tab 截图派给 Edge 并截到用户当前页。该图已删除。新 daemon 返回 HTTP 400 `ActionFailed`，不产生新截图，不启动 Chrome。
+- Chrome 未运行，记 `not_run`。工作树是脏的。双浏览器正反向和干净 SHA 都还没有，不能标完成。
+- 不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`、`01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+## 2026-10-14：MAC-006 完成
+
+`e6fa5e9aee54d96360e085ec4b8cd65314333187` 干净工作树复跑 `scripts/poc_mac_006_session.py` 返回 `ok=true`，`dirty=false`，`completion_allowed=true`。证据 `mac-006-stage` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-007`、`BR-001` 或 `CORE-001`，除非用户明确要求。停手时 AWR ready 已有 `BR-001` 和 `CORE-001`。`MAC-007` 仍等待 `BR-004`。不要结束会话 `01M4X0GJ2YM9HX9R0P7BF5QX6R`、`01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。
+
+- 两块显示器都是 2×。屏幕未锁。查询屏幕和坐标映射没有启动 HUD。
+- HUD 可见时 Guide hover HTTP 200，命中 AX `[124, 897]`，窗口点 `[92, 863]`。系统光标前后都是 `[3173.234375, 668.8125]`，`os_cursor_used=false`。
+- 隐藏 HUD 后 hover 和 `/v1/app/invoke` 都是 HTTP 400 `StageRequired`。helper `SIGKILL` 后窗口清空，动作 HTTP 404 `SessionNotFound`。
+- daemon `SIGKILL` 后 epoch 从 `01M4X2NWFRD8546YA9H1VG3FS4` 变为 `01M4X2P4V8BZEEDXXXB7TT3T84`。旧 Scene 不复用，orphan stage 被 sweep，旧 ref HTTP 400 `InvalidInput`。
+- CLI、MCP 和 abort 文件都清理了自建 HUD/Guide。abort 文件是 Escape 写入的同一清理路径。物理 Escape 键没有按，不能写成已验证。
+- 1×、3× 和负原点真机点位未测。负坐标确定性测试 `negative_display_origin_maps_retina_pixels_and_guide` 通过。同一次干净 SHA 上，helper reap、隐藏 Stage 拒绝和 orphan sweep 单测通过。
+- 没有改 TCC，没有点 Edge Allow，没有移动系统光标，没有自动化微信，没有注入全局 Escape。
+
 ## 2026-10-14：MAC-005 完成
 
 `bfff2f420d2d2882fc7d5962628873efc8a6d977` 干净工作树复跑 `scripts/poc_mac_005_navigation.py` 返回 `ok=true`，`dirty=false`，`completion_allowed=true`。证据 `mac-005-navigation` 已登记。`awr work complete` 不能改写 `.awr` 台账，所以完成状态直接写在源台账。不要领取 `MAC-006` 或 `BR-001`，除非用户明确要求。不要结束会话 `01M4WYGS48DZE0X55A2HDJMP00`、`01M4WK83ATFMZE2GT1NR2J3H9Z`、`01M4DY9QJG6MXVSR03ZSV76SN1`、`01M4DJ9FZJA5A39ZS0CBB5V8GA` 或 `01M3KKZTFFQTZ3FF0DWWZHP5QV`。

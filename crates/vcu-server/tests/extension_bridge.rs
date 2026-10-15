@@ -434,6 +434,60 @@ async fn reload_all_clients_targets_each_connected_browser() {
 }
 
 #[tokio::test]
+async fn reload_failure_uses_background_tab_and_does_not_activate_the_user_page() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge
+        .mark_hello_client(true, Some("edge".into()), Some("edge".into()))
+        .await;
+    let worker = bridge.clone();
+    let handle = tokio::spawn(async move {
+        for _ in 0..6 {
+            let Some(cmd) = worker
+                .poll_for(2000, Some("edge".into()), Some("edge".into()))
+                .await
+            else {
+                break;
+            };
+            match cmd.method.as_str() {
+                "reload_self" => {
+                    worker
+                        .submit_result(&cmd.id, json!({"ok": false, "error": "reload_self failed"}))
+                        .await;
+                }
+                "open_reload_tab" => {
+                    worker
+                        .submit_result(
+                            &cmd.id,
+                            json!({"ok": true, "background_group": true, "active": false, "activated_user_page": false}),
+                        )
+                        .await;
+                }
+                "ping" => {
+                    worker
+                        .submit_result(&cmd.id, json!({"ok": true, "pong": true, "version": "0.2.8"}))
+                        .await;
+                }
+                "list_tabs" => {
+                    worker
+                        .submit_result(&cmd.id, json!({"ok": true, "tabs": []}))
+                        .await;
+                }
+                other => panic!("unexpected reload command {other}"),
+            }
+        }
+    });
+    let result = bridge.reload_clients(true).await.expect("background reload");
+    assert_eq!(result["ok"], true);
+    let clients = result["clients"].as_array().expect("clients");
+    assert!(clients.iter().any(|row| {
+        row["background_group"] == true
+            && row["page_reload"] == true
+            && row["activated_user_page"] == false
+    }));
+    handle.abort();
+}
+
+#[tokio::test]
 async fn reload_without_client_ids_enqueues_two_untargeted_commands() {
     let bridge = ExtensionBridge::with_lease_ms(80);
     bridge.mark_hello(true).await;
@@ -581,5 +635,75 @@ async fn open_tab_hint_targets_observe_browser() {
         .unwrap();
     assert_eq!(result["owner"], "chrome");
     chrome_w.await.unwrap();
+    edge_w.await.unwrap();
+}
+
+#[tokio::test]
+async fn missing_browser_hint_does_not_capture_another_browser() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge
+        .mark_hello_client(true, Some("edge".into()), Some("edge".into()))
+        .await;
+    let edge = bridge.clone();
+    let edge_w = tokio::spawn(async move {
+        let stolen = tokio::time::timeout(
+            std::time::Duration::from_millis(250),
+            edge.poll_for(200, Some("edge".into()), Some("edge".into())),
+        )
+        .await
+        .ok()
+        .flatten();
+        assert!(stolen.is_none(), "edge must not receive a chrome-only capture");
+    });
+    let err = bridge
+        .call_timeout_hinted("capture_tab", json!({}), 1, Some("chrome"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), ErrorCode::ActionFailed);
+    assert!(err.message().contains("not connected"));
+    assert_eq!(bridge.pending_len().await, 0);
+    edge_w.await.unwrap();
+}
+
+#[tokio::test]
+async fn tab_owned_by_another_browser_is_not_captured() {
+    let bridge = ExtensionBridge::with_lease_ms(80);
+    bridge
+        .mark_hello_client(true, Some("edge".into()), Some("edge".into()))
+        .await;
+    let lister = bridge.clone();
+    let listed = tokio::spawn(async move {
+        let cmd = lister
+            .poll_for(2000, Some("edge".into()), Some("edge".into()))
+            .await
+            .expect("list");
+        assert_eq!(cmd.method, "list_tabs");
+        lister
+            .submit_result(
+                &cmd.id,
+                json!({"ok": true, "tabs": [{"tab_id": "42", "window_id": "1", "url": "https://user.example/"}]}),
+            )
+            .await;
+    });
+    bridge.list_tabs_merged().await.unwrap();
+    listed.await.unwrap();
+    let edge = bridge.clone();
+    let edge_w = tokio::spawn(async move {
+        let stolen = tokio::time::timeout(
+            std::time::Duration::from_millis(250),
+            edge.poll_for(200, Some("edge".into()), Some("edge".into())),
+        )
+        .await
+        .ok()
+        .flatten();
+        assert!(stolen.is_none(), "edge must not capture its tab for a chrome request");
+    });
+    let err = bridge
+        .call_timeout_hinted("capture_tab", json!({"tab_id": "42"}), 1, Some("chrome"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), ErrorCode::ActionFailed);
+    assert!(err.message().contains("different browser"));
+    assert_eq!(bridge.pending_len().await, 0);
     edge_w.await.unwrap();
 }

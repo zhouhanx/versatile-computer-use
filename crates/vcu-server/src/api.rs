@@ -255,7 +255,14 @@ async fn browser_click(
             "selector": selector,
             "dry_run": req.dry_run,
         });
-        let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+        let (tab, tab_src, kind) = match bound_mutating_dom_target(
+            &state,
+            req.tab_id.as_deref(),
+            req.browser.as_deref(),
+            req.dry_run,
+        )
+        .await
+        {
             Ok(v) => v,
             Err(e) => return err_response(e),
         };
@@ -465,6 +472,24 @@ async fn bound_dom_target(
     explicit_tab: Option<&str>,
     browser: Option<&str>,
 ) -> Result<(Option<String>, &'static str, Option<&'static str>), VcuError> {
+    bound_dom_target_inner(state, explicit_tab, browser, None).await
+}
+
+async fn bound_mutating_dom_target(
+    state: &AppState,
+    explicit_tab: Option<&str>,
+    browser: Option<&str>,
+    dry_run: bool,
+) -> Result<(Option<String>, &'static str, Option<&'static str>), VcuError> {
+    bound_dom_target_inner(state, explicit_tab, browser, Some(dry_run)).await
+}
+
+async fn bound_dom_target_inner(
+    state: &AppState,
+    explicit_tab: Option<&str>,
+    browser: Option<&str>,
+    release_dry_run: Option<bool>,
+) -> Result<(Option<String>, &'static str, Option<&'static str>), VcuError> {
     let want = parse_observe_browser(browser)?;
     let explicit = explicit_tab
         .map(str::trim)
@@ -480,11 +505,13 @@ async fn bound_dom_target(
         let filter = if explicit { want } else { want.or(last_kind) };
         let found = find_extension_tab(&tabs, id, filter)?;
         let kind = kind_from_tab(&found).or(filter);
-        return Ok((
-            json_tab_id_value(&found).or_else(|| Some(id.to_string())),
-            src,
-            kind,
-        ));
+        let bound_id = json_tab_id_value(&found).or_else(|| Some(id.to_string()));
+        let (out_id, out_src) = if let Some(dry_run) = release_dry_run {
+            crate::login_state::release_reading_page_target(dry_run, (bound_id, src), Some(&found))
+        } else {
+            (bound_id, src)
+        };
+        return Ok((out_id, out_src, kind));
     }
     Ok((None, src, want.or(last_kind)))
 }
@@ -575,7 +602,14 @@ async fn browser_hover(
         "selector": selector,
         "dry_run": req.dry_run,
     });
-    let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+    let (tab, tab_src, kind) = match bound_mutating_dom_target(
+        &state,
+        req.tab_id.as_deref(),
+        req.browser.as_deref(),
+        req.dry_run,
+    )
+    .await
+    {
         Ok(v) => v,
         Err(e) => return err_response(e),
     };
@@ -635,7 +669,14 @@ async fn browser_type(
             "text": req.text.clone().unwrap_or_default(),
             "dry_run": req.dry_run,
         });
-        let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+        let (tab, tab_src, kind) = match bound_mutating_dom_target(
+            &state,
+            req.tab_id.as_deref(),
+            req.browser.as_deref(),
+            req.dry_run,
+        )
+        .await
+        {
             Ok(v) => v,
             Err(e) => return err_response(e),
         };
@@ -751,7 +792,14 @@ async fn browser_scroll(
     });
     if state.extension_bridge.is_polling().await && state.extension_bridge.likely_user_profile().await {
         let mut params = json!({"dy": req.dy, "dry_run": req.dry_run});
-        let (tab, tab_src, kind) = match bound_dom_target(&state, req.tab_id.as_deref(), req.browser.as_deref()).await {
+        let (tab, tab_src, kind) = match bound_mutating_dom_target(
+            &state,
+            req.tab_id.as_deref(),
+            req.browser.as_deref(),
+            req.dry_run,
+        )
+        .await
+        {
             Ok(v) => v,
             Err(e) => return err_response(e),
         };
@@ -1111,6 +1159,13 @@ async fn browser_extract(
 struct BrowserPingReq {
     #[serde(default)]
     reload: bool,
+    /// False skips the reload.html fallback. macOS never uses `open -a`, because that replaces the user page.
+    #[serde(default = "default_allow_page_reload")]
+    allow_page_reload: bool,
+}
+
+fn default_allow_page_reload() -> bool {
+    true
 }
 
 async fn browser_ping(
@@ -1128,7 +1183,7 @@ async fn browser_ping(
         ));
     }
     if req.reload {
-        match state.extension_bridge.reload_all_clients().await {
+        match state.extension_bridge.reload_clients(req.allow_page_reload).await {
             Ok(v) => {
                 return Json(Envelope::ok(json!({
                     "login_state": true,
@@ -1193,7 +1248,7 @@ async fn browser_screenshot(State(state): State<Arc<AppState>>, headers: HeaderM
     if let Some(id) = tab.as_deref() {
         params["tab_id"] = json_tab_param(id);
     }
-    let mut result = match extension_dom_call_for(&state, "capture_tab", params, 8, kind).await {
+    let mut result = match extension_dom_call_for(&state, "capture_tab", params, 18, kind).await.map_err(refuse_background_capture) {
         Ok(v) => v,
         Err(e) => {
             let msg = e.message();
@@ -1287,6 +1342,22 @@ async fn browser_viewport_click(state: Arc<AppState>, req: BrowserClickReq) -> a
             err_response(e)
         }
     }
+}
+
+fn refuse_background_capture(err: VcuError) -> VcuError {
+    let detail = err.detail().unwrap_or_default();
+    let blob = format!("{} {}", err.message(), detail);
+    if blob.contains("refusing to activate")
+        || blob.contains("tabs.captureTab")
+        || blob.contains("without moving the user page")
+    {
+        return VcuError::with_detail(
+            ErrorCode::ActionFailed,
+            "background tab screenshot refused; do not select or activate the user page",
+            if detail.is_empty() { err.message() } else { detail },
+        );
+    }
+    err
 }
 
 fn summarize_viewport_result(result: &mut Value) {
@@ -3559,10 +3630,10 @@ async fn observe_via_lens(
 ) -> Result<Value, VcuError> {
     user_extension_ready(state).await?;
     let frontmost = crate::login_state::frontmost_user_browser_name();
-    let mut tabs_v = state.extension_bridge.list_tabs_merged().await?;
+    let tabs_v = state.extension_bridge.list_tabs_merged().await?;
     let requested = want_tab.map(str::trim).filter(|s| !s.is_empty());
     let want_kind = parse_observe_browser(want_browser)?;
-    let (mut tab, kind) = if let Some(want) = requested {
+    let (tab, kind) = if let Some(want) = requested {
         let tab = find_extension_tab(&tabs_v, want, want_kind)?;
         let kind = kind_from_tab(&tab).or(want_kind).or_else(|| kind_from_frontmost(frontmost.as_deref()));
         (tab, kind)
@@ -3604,21 +3675,9 @@ async fn observe_via_lens(
     let tab_id = json_tab_id_value(&tab).ok_or_else(|| {
         VcuError::coded(ErrorCode::ActionFailed, "observe tab missing tab_id")
     })?;
-    if requested.is_some() && !tab_is_visible(&tab) {
-        state
-            .extension_bridge
-            .call_timeout_hinted(
-                "select_tab",
-                json!({"tab_id": tab_id, "focus_window": false}),
-                8,
-                kind,
-            )
-            .await?;
-        tabs_v = state.extension_bridge.list_tabs_merged().await?;
-        if let Ok(fresh) = find_extension_tab(&tabs_v, &tab_id, kind) {
-            tab = fresh;
-        }
-    }
+    // Do not select_tab here. Even focus_window:false activates the tab in the
+    // user's window and replaces the page they are using. Agent work stays in
+    // the collapsed VCU group; capture_tab screenshots a background tab itself.
     let report = crate::login_state::inspect_login_browsers();
     let users = crate::login_state::order_user_browsers_frontmost_first(
         report.user_browsers.clone(),
@@ -3647,12 +3706,15 @@ async fn observe_via_lens(
         "hud": false,
         "source": "extension_viewport",
         "browser": kind,
+        "page_being_read": crate::login_state::page_being_read(&tab),
+        "act_target": if crate::login_state::page_being_read(&tab) { "agent_group" } else { "tab" },
     });
     if pixels {
         let captured = state
             .extension_bridge
-            .call_timeout_hinted("capture_tab", json!({"tab_id": tab_id}), 8, kind)
-            .await?;
+            .call_timeout_hinted("capture_tab", json!({"tab_id": tab_id}), 18, kind)
+            .await
+            .map_err(refuse_background_capture)?;
         let encoded = captured
             .get("png_base64")
             .and_then(Value::as_str)

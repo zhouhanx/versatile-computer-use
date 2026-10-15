@@ -42,7 +42,7 @@ P2 补充发现与修复：Rust bridge 的 1.5 秒 lease 原先会重投点击�
 
 真实AXPress返回-25201，不能支持该网页按钮。增加 `POST /v1/browser/screenshot` (`tab_id`)，扩展 captureVisibleTab 得到网页PNG；HTTP持久化 capture_id、文档状态、尺寸。`click` 的 `space=viewport` 和 capture_id 将像素映射到网页CSS坐标，内容脚本严格比较状态并命中目标。无效、过期(60秒)、已消费截图拒绝；非dry-run只消费一次。网页变更不重用旧图。
 
-截图要求目标tab active以确保captureVisibleTab拍到正确页；动作始终绑定该tab，用户切换标签不重定向或强抢焦点。DOM point click保留原始热点，拒绝iframe/canvas等需trusted事件的点目标。整窗使用native helper查CGWindowID再screencapture -l，不以屏幕区域替代。CLI/MCP观察失败不再包成ok:true。
+截图不得为了 `captureVisibleTab` 去激活用户窗口里的后台标签，也不得展开用户正在看的组或抢走 OS 前台。已可见标签就地截。有 `tabs.captureTab` 时后台标签不移动。没有该 API 时，只把目标标签短暂移到未聚焦的安静窗口，按原 viewport 截图，再放回原组。视口在安静窗口里读取并校正，放回时保持原折叠状态。不得为了读视口而在用户窗口展开代理组。确认 URL、尺寸、滚动和布局后把安静窗口缩回屏幕角落并复用，不在成功路径删除。搬移引起的 revision 跳动不单独判失效。后台滚动只认 page-world `window.scrollY`，不能用单独的 `scrollTop` 变化报成功。活动页截图仍拒绝真实 revision 变化。指定了浏览器但该浏览器未连接，或 tab 属于另一个浏览器时，拒绝且不派给别的浏览器。动作始终绑定该 tab，用户切换标签不重定向或强抢焦点。DOM point click保留原始热点，拒绝iframe/canvas等需trusted事件的点目标。整窗使用native helper查CGWindowID再screencapture -l，不以屏幕区域替代。CLI/MCP观察失败不再包成ok:true。
 
 ## 用户视觉反馈（待实施）
 

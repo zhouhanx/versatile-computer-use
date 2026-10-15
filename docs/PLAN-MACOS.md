@@ -82,12 +82,13 @@
 - 验收：双滚动区只改变指定区；滚动后可见内容或滚动条读回发生预期变化；等待值/名称/角色命中正确控件，缺失目标诚实超时；提取能读回 MAC-004 标记；不支持的滚动明确失败。
 - 2026-10-14：干净 SHA `bfff2f420d2d2882fc7d5962628873efc8a6d977` 复跑 `scripts/poc_mac_005_navigation.py`，`.local/desktop-cu/mac-MAC-005.json` 为 `ok=true`，`dirty=false`，`completion_allowed=true`。`scroll-a` 从 0 到 90 时 `scroll-b` 仍是 0；重新观察后 `scroll-b` 从 0 到 90，`scroll-a` 保持 90。两条都是 `verified=true`，`scroll_route=scroll-area-bar`，读回 `offset=90 bar=0.2`。按钮滚动 HTTP 400，两个 offset 仍是 90。wait 名称/角色命中 `scroll-a` / `AXScrollArea`；TextEdit 值等待独立读回 `VCU-MAC-005-0c04fff6`。提取 `source=desktop.scene`，count 1。没有重开 MAC-004 历史文件。`vcu-secret-should-not-leak` 未出现。证据 `mac-005-navigation` 已登记。
 
-### MAC-006：Stage/Guide 生命周期与坐标（P1，planned）
+### MAC-006：Stage/Guide 生命周期与坐标（P1，completed）
 
 - 前置：MAC-005；现有 StageRequired/Abort 门禁在前面所有切片中持续有效。
-- 落点：`stage.rs`、`helpers/vcu-stage/main.swift`、desktop session 管理；拟新增 `scripts/poc_mac_006_session.py`。
+- 落点：`stage.rs`、`helpers/vcu-stage/main.swift`、desktop session 管理；`scripts/poc_mac_006_session.py`。
 - 工作：补齐 HUD 启动失败、helper 退出、Escape/CLI/MCP Abort、会话结束及 daemon 重启的清理；动作前确认会话可见且未中止；统一 AX 点、截图像素和 Guide 坐标。
 - 验收：HUD 不可见或 Abort 后的动作被拒绝，重启不复用旧 Scene；无残留自建 HUD/Guide；Retina 缩放及负坐标用确定性测试；本机可用显示器做真机点位对照。多屏/1× 无设备时标未测，缩小宣称范围。
+- 2026-10-14：干净 SHA `e6fa5e9aee54d96360e085ec4b8cd65314333187` 复跑 `scripts/poc_mac_006_session.py`，`.local/desktop-cu/mac-MAC-006.json` 为 `ok=true`，`dirty=false`，`completion_allowed=true`。两块显示器都是 2×。HUD 可见时 Guide hover 命中窗口点，系统光标未动。隐藏 HUD 后 hover 和 `/v1/app/invoke` 都是 HTTP 400 `StageRequired`。helper `SIGKILL` 后会话消失，动作 HTTP 404，窗口清理。daemon `SIGKILL` 后 epoch 变化，旧 Scene 不复用，orphan stage 被 sweep。CLI、MCP 和 abort 文件都清理了自建 HUD/Guide。物理 Escape 未按。1×、3× 和负原点真机点位未测；负坐标确定性测试是 `negative_display_origin_maps_retina_pixels_and_guide`。证据 `mac-006-stage` 已登记。
 
 ### MAC-007：真实应用任务闭环（P1，planned）
 
@@ -113,7 +114,7 @@
 
 ## 5. 验证、证据和执行节奏
 
-`scripts/poc_mac_001_preflight.py` 已运行。MAC-002…005 的 POC 脚本已存在，并各有干净 SHA 报告；MAC-006 及之后的拟新增脚本仍不存在。实现时先复用仓库已有 POC，避免重复测试设施。每条切片的报告只在 POC 实际运行后写入 `.local/desktop-cu/mac-<ID>.json`，摘要写入 `docs/testing/MACOS_CU_RESULTS.md`。未运行的脚本不是证据。
+`scripts/poc_mac_001_preflight.py` 已运行。MAC-002…006 的 POC 脚本已存在，并各有干净 SHA 报告；MAC-007 及之后的拟新增脚本仍不存在。实现时先复用仓库已有 POC，避免重复测试设施。每条切片的报告只在 POC 实际运行后写入 `.local/desktop-cu/mac-<ID>.json`，摘要写入 `docs/testing/MACOS_CU_RESULTS.md`。未运行的脚本不是证据。
 
 每份报告至少记录：work ID、真实 source SHA（未提交修改另记 diff 摘要/哈希）、OS/架构/显示器、实际二进制与 daemon、命令、时间、逐条验收结果、source/input_path、截图或读回证据、清理结果。本轮规划文档不能充当未来功能完成报告。
 

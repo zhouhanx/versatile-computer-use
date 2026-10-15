@@ -76,7 +76,7 @@ async fn serve(paths: VcuPaths) -> VcuResult<()> {
                         "name": "vcu-mcp",
                         "version": env!("CARGO_PKG_VERSION")
                     },
-                    "instructions": "VCU browser computer-use on USER Chrome/Edge (dual-browser). Host vision is enough. First vcu_browser_ping, then vcu_browser_observe (look at the PNG). Observe stamps tab_id; for 60s, selector click/type/hover/scroll/extract, viewport screenshot, and open (existing USER window) bind that last observe and its Chrome/Edge lens. Explicit tab_id still wins. Webpage pixels: vcu_browser_screenshot, view PNG this turn, then vcu_browser_click(space=viewport,capture_id,pixel_x,pixel_y). Captures expire in 60s and one real action consumes them; on stale/timeout observe again, do not replay. DOM events are synthetic (trusted=false); verify page results. Never mix observe window/webview pixels with viewport images. Desktop session snapshots of Chrome/Edge may include browser_tabs but source stays ax_scene — HTML clicks still use vcu_browser_*. Never CDP Allow, OS cursor warp, WeChat, or blind Return."
+                    "instructions": "VCU browser computer-use on USER Chrome/Edge (dual-browser). Host vision is enough. First vcu_browser_ping, then vcu_browser_observe (look at the PNG). Observe does not activate or replace the page in use. Real click/type/hover/scroll omit tab_id and stay in the collapsed VCU or session tab group; do not copy the observed tab_id when that tab is the page being read, and do not select it. Explicit tab_id of that page is refused, not redirected. extract, screenshot, wait, and viewport capture still bind last observe and stay read-only on that page. Webpage pixels: vcu_browser_screenshot, view PNG this turn, then vcu_browser_click(space=viewport,capture_id,pixel_x,pixel_y) only for a VCU-group capture. Captures expire in 60s and one real action consumes them; on stale/timeout observe again, do not replay. DOM events are synthetic (trusted=false); verify page results. Never mix observe window/webview pixels with viewport images. Desktop session snapshots of Chrome/Edge may include browser_tabs but source stays ax_scene — HTML clicks still use vcu_browser_*. Never CDP Allow, OS cursor warp, WeChat, or blind Return."
                 }
             }),
             "ping" => json!({"jsonrpc":"2.0","id": id, "result": {}}),
@@ -128,54 +128,54 @@ fn tool_defs() -> Vec<Value> {
         tool("vcu_browser_login_state", "Classify user vs empty Agent browser. Login-state is the USER window, not ~/.vcu/edge-agent-profile.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_next", "Next login-state action only (load unpacked / observe). Never clicks Allow.", json!({"type":"object","properties":{}})),
         tool("vcu_browser_install_lens", "Copy VCU extension to ~/.vcu/lens-extension. Optional reload hot-restarts every connected Edge/Chrome SW. Does not click UI or Allow.", json!({"type":"object","properties":{"reload":{"type":"boolean","default":false}}})),
-        tool("vcu_browser_observe", "Observe USER Chrome/Edge without Stage HUD. Without tab_id, frontmost must be USER Chrome/Edge; otherwise pass tab_id. Optional tab_id captures that tab (activates in-window, does not steal OS frontmost). Returns PNG plus JSON (vision_handoff.must_view). Look at the image before clicking.", json!({
+        tool("vcu_browser_observe", "Observe USER Chrome/Edge without Stage HUD and without activating or replacing the page in use. Without tab_id, frontmost must be USER Chrome/Edge; otherwise pass tab_id. Optional tab_id captures that tab in place. If page_being_read is true, do not pass that tab_id to click/type/hover/scroll and do not select it. Returns PNG plus JSON (vision_handoff.must_view). Look at the image before clicking.", json!({
             "type":"object",
             "properties":{
                 "pixels":{"type":"boolean","default":true},
                 "selector":{"type":"string","description":"Scene extract filter; default *"},
                 "budget":{"type":"integer","default":2500},
-                "tab_id":{"type":"string","description":"Exact USER tab to capture; does not steal OS frontmost"},
+                "tab_id":{"type":"string","description":"Exact USER tab to capture in place. Does not activate it or replace the page in use"},
                 "browser":{"type":"string","description":"chrome or edge; required when tab_id collides; without tab_id observes that browser's focused tab"}
             }
         })),
         tool("vcu_browser_screenshot", "Capture a USER tab viewport as PNG. Without tab_id, uses last observe tab for 60s. View image before click with space=viewport and capture_id. Expires in 60s; real click consumes capture.", json!({"type":"object","properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
-        tool("vcu_browser_click", "Click a USER webpage by unique selector or bound viewport screenshot pixels (capture_id required). Without tab_id, selector clicks bind last observe for 60s. window/webview is AX, not DOM. dry_run does not press. Never OS cursor or Allow.", json!({
+        tool("vcu_browser_click", "Click a USER webpage by unique selector or bound viewport screenshot pixels (capture_id required). Omit tab_id for a real click so it stays in the collapsed VCU group. Do not pass the page being read; that explicit tab is refused, not redirected. dry_run may inspect last observe. window/webview is AX, not DOM. Never OS cursor or Allow.", json!({
             "type":"object",
             "properties":{
                 "capture_id":{"type":"string","description":"Required for space=viewport; use browser_screenshot capture_id"},
                 "pixel_x":{"type":"number"},
                 "pixel_y":{"type":"number"},
                 "selector":{"type":"string","description":"CSS selector; DOM click via USER extension"},
-                "tab_id":{"type":"string","description":"USER tab id; default last observe"},
+                "tab_id":{"type":"string","description":"Only a VCU or session group tab. Omit so a real click stays in that collapsed group. Never the page being read"},
                 "browser":{"type":"string","description":"chrome or edge when tab_id collides"},
                 "space":{"type":"string","description":"viewport (bound browser screenshot), window or webview (AX)","default":"window"},
                 "dry_run":{"type":"boolean","default":false},
                 "guide":{"type":"boolean","default":false}
             }
         })),
-        tool("vcu_browser_type", "Type on USER browser without HUD. Default AX address bar. selector uses USER extension DOM (source=extension_dom); a native <select> is set by option value or label (input_path=dom_select).", json!({
+        tool("vcu_browser_type", "Type on USER browser without HUD. Default AX address bar. selector uses USER extension DOM (source=extension_dom); a native <select> is set by option value or label (input_path=dom_select). Omit tab_id for a real type so it stays in the collapsed VCU group. Do not pass the page being read.", json!({
             "type":"object","properties":{
                 "text":{"type":"string"},
                 "ref":{"type":"string"},
                 "selector":{"type":"string","description":"CSS selector; DOM type via USER extension"},
-                "tab_id":{"type":"string","description":"Exact tab ID; no fallback if missing"},
+                "tab_id":{"type":"string","description":"Only a VCU or session group tab. Omit for a real type. Never the page being read"},
                 "browser":{"type":"string","description":"chrome or edge when tab_id collides"},
                 "dry_run":{"type":"boolean","default":false}
             }
         })),
-        tool("vcu_browser_hover", "Hover a unique CSS selector on a USER tab via extension DOM. Synthetic mouseover; trusted=false; dry_run does not dispatch.", json!({
+        tool("vcu_browser_hover", "Hover a unique CSS selector in the collapsed VCU group. Omit tab_id for a real hover. Do not pass the page being read. Synthetic mouseover; trusted=false; dry_run does not dispatch.", json!({
             "type":"object","required":["selector"],
             "properties":{
                 "selector":{"type":"string"},
-                "tab_id":{"type":"string"},
+                "tab_id":{"type":"string","description":"Only a VCU or session group tab. Omit for a real hover. Never the page being read"},
                 "browser":{"type":"string"},
                 "dry_run":{"type":"boolean","default":false}
             }
         })),
-        tool("vcu_browser_scroll", "Scroll USER tab via extension DOM. Explicit tab never falls back to AX. dry_run does not scroll.", json!({
+        tool("vcu_browser_scroll", "Scroll in the collapsed VCU group via extension DOM. Omit tab_id for a real scroll. Do not pass the page being read. Explicit tab never falls back to AX. dry_run does not scroll.", json!({
             "type":"object","properties":{
                 "dy":{"type":"integer","default":600},
-                "tab_id":{"type":"string","description":"Exact tab ID; no fallback if missing"},
+                "tab_id":{"type":"string","description":"Only a VCU or session group tab. Omit for a real scroll. Never the page being read. Null is not a target"},
                 "browser":{"type":"string"},
                 "dry_run":{"type":"boolean","default":false}
             }
@@ -202,9 +202,9 @@ fn tool_defs() -> Vec<Value> {
             }
         })),
         tool("vcu_browser_tabs", "List USER browser tabs and native groups, including focus and collapsed state.", json!({"type":"object","properties":{}})),
-        tool("vcu_browser_select", "Select an exact tab, expand its group and focus its browser window. Pass browser=chrome|edge when tab_id collides.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
+        tool("vcu_browser_select", "Explicitly switch to a tab, expand its group and focus its browser window. This interrupts the page in use. Do not call it to start work; omit tab_id on click/type/hover/scroll instead. Pass browser=chrome|edge when tab_id collides.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
         tool("vcu_browser_close", "Close exactly the explicitly named tab. Pass browser=chrome|edge when tab_id collides. Never substitutes another tab.", json!({"type":"object","required":["tab_id"],"properties":{"tab_id":{"type":"string"},"browser":{"type":"string"}}})),
-        tool("vcu_browser_open", "Open a background tab in the VCU tab group. Does not replace the user page or focus the window. browser=chrome|edge overrides last observe. new_window=true is opt-in.", json!({"type":"object","required":["url"],"properties":{
+        tool("vcu_browser_open", "Open a background tab in the parked quiet window collapsed VCU group when one exists. Does not replace the page being read, activate the new tab, or focus a window. browser=chrome|edge overrides last observe. new_window=true is opt-in.", json!({"type":"object","required":["url"],"properties":{
             "url":{"type":"string"},"session_name":{"type":"string"},"group_id":{"type":"string"},"active":{"type":"boolean","default":false},"new_window":{"type":"boolean","default":false},"browser":{"type":"string","description":"chrome or edge"}
         }})),
         tool("vcu_browser_group", "Group explicit same-window tab IDs in one browser. Rejects Chrome+Edge mixes. Pass browser when tab_id collides.", json!({"type":"object","required":["tab_ids","title"],"properties":{
@@ -474,7 +474,7 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(px) = args.get("pixel_x") { body["pixel_x"] = px.clone(); }
             if let Some(py) = args.get("pixel_y") { body["pixel_y"] = py.clone(); }
             if let Some(sel) = args.get("selector") { body["selector"] = sel.clone(); }
-            if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
+            copy_explicit_tab(&args, &mut body);
             if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
             client.post("/v1/browser/click", body).await?
         }
@@ -485,7 +485,7 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
             if let Some(t) = args.get("text") { body["text"] = t.clone(); }
             if let Some(r) = args.get("ref") { body["ref"] = r.clone(); }
             if let Some(sel) = args.get("selector") { body["selector"] = sel.clone(); }
-            if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
+            copy_explicit_tab(&args, &mut body);
             if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
             client.post("/v1/browser/type", body).await?
         }
@@ -494,16 +494,16 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
                 "selector": req_str(&args, "selector")?,
                 "dry_run": args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false)
             });
-            if let Some(t) = args.get("tab_id") { body["tab_id"] = t.clone(); }
+            copy_explicit_tab(&args, &mut body);
             if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
             client.post("/v1/browser/hover", body).await?
         }
         "vcu_browser_scroll" => {
             let mut body = json!({
-                "tab_id": args.get("tab_id"),
                 "dy": args.get("dy").and_then(|v| v.as_i64()).unwrap_or(600),
                 "dry_run": args.get("dry_run").and_then(|v| v.as_bool()).unwrap_or(false)
             });
+            copy_explicit_tab(&args, &mut body);
             if let Some(b) = args.get("browser") { body["browser"] = b.clone(); }
             client.post("/v1/browser/scroll", body).await?
         }
@@ -821,6 +821,19 @@ async fn handle_tool(paths: &VcuPaths, name: &str, args: Value) -> VcuResult<Val
     Ok(body)
 }
 
+fn explicit_tab_id(value: Option<&Value>) -> Option<&str> {
+    value
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+}
+
+fn copy_explicit_tab(args: &Value, body: &mut Value) {
+    if let Some(id) = explicit_tab_id(args.get("tab_id")) {
+        body["tab_id"] = json!(id);
+    }
+}
+
 fn req_str<'a>(args: &'a Value, key: &str) -> VcuResult<&'a str> {
     args.get(key)
         .and_then(|v| v.as_str())
@@ -1010,6 +1023,26 @@ mod desktop_host_tools_tests {
         assert!(props.get("value").is_some(), "{wait}");
         let hover = tools.iter().find(|t| t["name"] == "vcu_hover").unwrap();
         assert!(hover["description"].as_str().unwrap().contains("Never OS cursor"));
+    }
+
+    #[test]
+    fn null_tab_id_is_not_an_explicit_browser_target() {
+        let mut body = serde_json::json!({});
+        super::copy_explicit_tab(&serde_json::json!({"tab_id": null}), &mut body);
+        assert!(body.get("tab_id").is_none());
+        super::copy_explicit_tab(&serde_json::json!({"tab_id": "  "}), &mut body);
+        assert!(body.get("tab_id").is_none());
+        super::copy_explicit_tab(&serde_json::json!({"tab_id": "42"}), &mut body);
+        assert_eq!(body["tab_id"], "42");
+        let tools = tool_defs();
+        for name in ["vcu_browser_click", "vcu_browser_type", "vcu_browser_hover", "vcu_browser_scroll"] {
+            let tool = tools.iter().find(|item| item["name"] == name).unwrap();
+            let desc = tool["description"].as_str().unwrap();
+            assert!(desc.contains("page being read"), "{name}: {desc}");
+            assert!(desc.to_ascii_lowercase().contains("omit tab_id"), "{name}: {desc}");
+        }
+        let observe = tools.iter().find(|item| item["name"] == "vcu_browser_observe").unwrap();
+        assert!(observe["description"].as_str().unwrap().contains("without activating"));
     }
 
     #[test]
