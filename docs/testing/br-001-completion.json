@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "work_item": "BR-001",
+  "source_sha": "19327b0724b0cfceb8a3f5724872714a2ba4b3f7",
+  "command": "python3 scripts/poc_browser_br_001_macos.py",
+  "scope": [
+    "BR-001"
+  ],
+  "verified_at": 1792065402774,
+  "checks": [
+    {
+      "name": "Chrome and Edge USER baseline",
+      "passed": true,
+      "details": "Clean 19327b0 POC ok=true, dirty=false, completion_allowed=true. Chrome protected tab 1934573032 and Edge protected tab 1828173166 stayed focused. Front app stayed Hearthstone. Fixture tabs 1934573112 and 1828173221 were opened in quiet windows, observed, extracted with source=extension_dom, screenshotted, reloaded at extension 0.2.8, and closed. No Allow click, no OS cursor, no cold start, no profile change.",
+      "criteria": [
+        "macOS Chrome/Edge 各有 USER ping/observe 和重载后版本一致证据",
+        "不代点 Allow，测试标签可清理"
+      ]
+    },
+    {
+      "name": "disconnect fails honestly and USER extension reconnects",
+      "passed": true,
+      "details": "The POC stopped the already-running daemon, health went down, and browser ping was not ok. Restart used target/debug/vcu-daemon --user-dir ~/.vcu. Reconnect reported extension_profile=user. Browser main pids stayed Chrome 23946 and Edge 95352. Gate tests extract_requires_user_extension, ping_unknown_method_is_stale, and login_state_marks_stale_sw passed. Live stale service worker was not injected.",
+      "criteria": [
+        "无扩展、stale SW、断连不假成功；不冷启动或改用户 profile"
+      ]
+    }
+  ]
+}

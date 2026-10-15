@@ -4,7 +4,7 @@
 
 ## 当前节点
 
-**浏览器基线（2026-10-15）：** 2026-10-15 官方 POC `scripts/poc_browser_br_001_macos.py` 在脏工作树上 `ok=true`，`completion_allowed=false`。Chrome 和 Edge 基线都 pass。受保护页没被替换：Edge Apple 页 `1828173166`、Chrome 必应页 `1934573032` 仍 focused。前台始终是 Hearthstone。夹具开在各自安静窗折叠组，测完已关，没有落回正在看的窗。断连停掉当时的 daemon 后 ping 诚实失败，再按 `target/debug/vcu-daemon --user-dir ~/.vcu` 拉起，USER 扩展重连，`quiet_open=own-window`。没有冷启动，没有点 Allow，没有改 profile。扩展单测 104 通过、0 失败。`background.js` SHA256 `21c52d21ac682bb9b630a1211688462f87868e64fc5de3af36c6428b6a9ffb0c`。keypress、snapshot、现场挪窗和 live stale SW 仍 not_run。Edge 截图采样没有记录受保护 CG 窗口 id，不能补写成几何已证明。提交前 HEAD 是 `e6fa5e9`，工作树脏。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。证据 `.local/browser-cu/br-001.json`、`.local/browser-cu/br-001-reverse.json`。
+**浏览器基线（2026-10-15）：** `19327b0` 干净工作树复跑 `scripts/poc_browser_br_001_macos.py` 返回 `ok=true`，`dirty=false`，`completion_allowed=true`。Chrome 受保护页 `1934573032` 和 Edge 受保护页 `1828173166` 仍 focused，前台仍是 Hearthstone。夹具已关。断连后 ping 不是 ok，再按 `target/debug/vcu-daemon --user-dir ~/.vcu` 拉起，`extension_profile=user`。没有冷启动，没有点 Allow，没有改 profile。缺扩展和 stale SW 由门禁测试覆盖，live stale SW 没有注入。keypress、snapshot、现场挪窗仍 not_run，不写成已交付。源状态改为 completed。不要自动领取 `BR-002`、`CORE-001` 或 `MAC-007`。不要结束会话 `01M4X5644CBJ89DN3Y69SZ1WBS`。证据 `docs/testing/br-001-completion.json` 和 `.local/browser-cu/br-001.json`。
 
 **浏览器标签组（2026-10-15）：** 折叠 VCU 组里的 `example.com` 已能读到真实段落，且不切正在看的 Apple 页 `1828173166`。点名工作页 `1828173152` 的 `p` 提取 HTTP 200，首条是中文文档示例段落。当前 `example.com` 没有 `h1`，`h1` 提取是 `selector matched no text`，`read_page=true`，`stage=idle`，不再谎称没读到。单测 75 通过。扩展 SHA256 `429a31d79a47b2cbd48dcad081d8cb6277bfb8e2e9333a9491004d5a62c2949a`。Chrome、断连、keypress、snapshot、现场挪窗和干净 SHA 仍缺。这不是 `BR-001` 完成。证据 `.local/browser-cu/br-001-selector-miss.json`。
 

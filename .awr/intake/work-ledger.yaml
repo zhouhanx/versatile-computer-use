@@ -1412,16 +1412,17 @@ work_items:
 
   - id: BR-001
     title: macOS Chrome/Edge 登录态与连接基线
-    status: planned
+    status: completed
     goal: goal#vcu
     kind: delivery
     milestone: m-browser-next
     required: true
     priority: P0
-    summary: PLAN-BROWSER；复测 USER 扩展版本、ping/reload/断连恢复，发现缺口才修。
+    summary: 19327b0 干净 POC ok=true。Chrome/Edge USER 登录态打开、观察、提取、截图和重载留在安静窗折叠组，不替换正在看的页。断连诚实失败并重连。live stale SW、keypress、snapshot 和现场挪窗未测。
     acceptance: ["macOS Chrome/Edge 各有 USER ping/observe 和重载后版本一致证据", "无扩展、stale SW、断连不假成功；不冷启动或改用户 profile", "不代点 Allow，测试标签可清理"]
-    next_action: 2026-10-15 官方 POC `scripts/poc_browser_br_001_macos.py` 在脏工作树上 `ok=true`，`completion_allowed=false`。Chrome 和 Edge 基线都 pass。受保护页没被替换：Edge Apple 页 `1828173166`、Chrome 必应页 `1934573032` 仍 focused。前台始终是 Hearthstone。夹具开在各自安静窗折叠组，测完已关，没有落回正在看的窗。断连停掉当时的 daemon 后 ping 诚实失败，再按 `target/debug/vcu-daemon --user-dir ~/.vcu` 拉起，USER 扩展重连，`quiet_open=own-window`。没有冷启动，没有点 Allow，没有改 profile。扩展单测 104 通过、0 失败。`background.js` SHA256 `21c52d21ac682bb9b630a1211688462f87868e64fc5de3af36c6428b6a9ffb0c`。keypress、snapshot、现场挪窗和 live stale SW 仍 not_run。Edge 截图采样没有记录受保护 CG 窗口 id，不能补写成几何已证明。提交前 HEAD 是 `e6fa5e9`，工作树脏。源状态仍 planned，不能完成。不要领取 `CORE-001`、`BR-002` 或 `MAC-007`。证据 `.local/browser-cu/br-001.json`、`.local/browser-cu/br-001-reverse.json`。
+    next_action: 已完成。下一开发项是 BR-002，只在用户要求后领取。CORE-001 也可领取，但没有用户要求就不要领取。MAC-007 仍依赖 BR-004。不要结束会话 01M4X5644CBJ89DN3Y69SZ1WBS、01M4X0GJ2YM9HX9R0P7BF5QX6R、01M4WYGS48DZE0X55A2HDJMP00、01M4WK83ATFMZE2GT1NR2J3H9Z、01M4DY9QJG6MXVSR03ZSV76SN1、01M4DJ9FZJA5A39ZS0CBB5V8GA 或 01M3KKZTFFQTZ3FF0DWWZHP5QV。
     evidence:
+      - "docs/testing/br-001-completion.json"
       - "docs/HANDOFF.md"
       - "docs/PLAN-BROWSER.md"
       - ".local/browser-cu/br-001-actions.json"
